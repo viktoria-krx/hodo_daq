@@ -1,0 +1,5 @@
+.vscode
+build/*
+*.root
+*.bin
+*.csv
