@@ -17,6 +17,7 @@ public:
     bool setupV1190(int);
     bool checkModuleResponse();
     float getFirmwareRevision();
+    bool almostFull();
     unsigned int BLTRead(DataBank& dataBank);
     bool stop();
     bool start();

@@ -10,6 +10,7 @@
 #include <thread>
 #include <mutex>
 #include <condition_variable>
+#include <fstream>
 
 #define NUM_TDCS 4
 #define NUM_FPGAS 1
@@ -32,11 +33,20 @@ static const unsigned int FPGAserialNumber = 28;
 VMEInterface vme(BridgeBaseAddress);
 
 // Thread safe readout 
-std::queue<Event> eventQueue;
+std::queue<DataBank> bankQueue;
 std::mutex queueMutex;
 std::condition_variable dataAvailable;
 bool stopReadout = false;
 
+// Thread safe writing
+std::queue<std::vector<uint8_t>> blockQueue;
+std::mutex blockQueueMutex;
+std::condition_variable blockQueueCond;
+bool stopWriter = false;
+
+std::vector<std::thread> readoutThreads;
+
+uint32_t blockID = 0;
 
 int main() {
   vme.init();
@@ -86,6 +96,121 @@ int frontend_exit() {
 }
 
 
+
+void startReadoutThread(v1190& tdc, std::string bankName) {
+  readoutThreads.emplace_back([&tdc, bankName] () {
+    while(!stopReadout) {
+      DataBank dataBank(bankName.c_str());
+      unsigned int wordsRead = tdc.BLTRead(dataBank);
+
+      if (wordsRead > 0) {
+        std::lock_guard<std::mutex> lock(queueMutex);
+        bankQueue.push(std::move(dataBank));
+        dataAvailable.notify_one();
+      }
+      std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    }
+  });
+}
+
+void writeBinFile(const std::vector<uint8_t>& data) {
+  FILE* file = fopen("output.bin", "ab");
+  fwrite(data.data(), 1, data.size(), file);
+  fclose(file);
+}
+
+void fileWriterThread() {
+  while(!stopReadout) {
+      std::unique_lock<std::mutex> lock(blockQueueMutex);
+      blockQueueCond.wait(lock, [] { return !blockQueue.empty() || stopReadout; });
+
+      std::vector<uint8_t> binaryData = std::move(blockQueue.front());
+      blockQueue.pop();
+      lock.unlock();
+
+      writeBinFile(binaryData);  // Function to write data to file
+  }
+}
+
+
+
+void processEvents() {
+  while(!stopReadout) {
+    std::unique_lock<std::mutex> lock(queueMutex);
+    dataAvailable.wait(lock, [] {return !bankQueue.empty() || stopReadout; });
+
+    if (stopReadout) break;
+
+    Block block(blockID);
+
+    while (!bankQueue.empty()) {
+      DataBank dataBank = std::move(bankQueue.front());
+      bankQueue.pop();
+      block.addDataBank(dataBank);
+
+    }
+
+      lock.unlock();
+
+    DataBank GATE("GATE");
+    fpgas[0]->readFIFO(GATE, 0x0000);   // This function will only be properly written once I have a working Gate Register on the V2495
+    block.addDataBank(GATE);
+
+    DataBank CUSP("CUSP");        // Adding the current ms timestamp to the CUSP bank, since this won't change anything
+    auto now = std::chrono::system_clock::now();
+    auto now_ms = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()).count();
+    std::ifstream cuspFile("/path/to/cusp.txt");
+    if (cuspFile) {
+        int cuspValue;
+        cuspFile >> cuspValue;
+        Event eventCUSPrun;
+        eventCUSPrun.data.push_back(cuspValue);
+        eventCUSPrun.timestamp = now_ms;
+        CUSP.addEvent(eventCUSPrun);
+    }
+
+    std::vector<uint8_t> binaryData = block.serialize();
+    {
+      std::lock_guard<std::mutex> blockLock(blockQueueMutex);
+      blockQueue.push(std::move(binaryData));
+    }
+    blockQueueCond.notify_one();
+
+    blockID++;
+
+  }
+}
+
+void polling() {
+
+  bool isfull = false;
+  std::vector<bool> tdcReading(NUM_TDCS, false);
+
+  while (!stopReadout) {
+
+    for (auto tdc : tdcs) {
+      isfull |= tdc->almostFull();
+    }
+
+    if (isfull) {
+
+      for (int i = 0; i < NUM_TDCS; i++){
+        if (!tdcReading[i]) {
+          startReadoutThread(*tdcs[i], "TDC"+std::to_string(i));
+          tdcReading[i] = true;
+        }
+        
+      }
+
+    }
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(10));  // Small delay to avoid overloading CPU
+
+  }
+}
+
+
+
 bool start_run() {
     std::cout << "Starting data acquisition..." << std::endl;
 
@@ -95,6 +220,8 @@ bool start_run() {
             return false;
         }
     }
+
+    blockID = 0;
 
     // for (auto fpga : fpgas) {
     //   if (!fpga->start()) {
@@ -111,8 +238,81 @@ void stop_run() {
     std::cout << "Stopping data acquisition..." << std::endl;
 
     for (auto tdc : tdcs) {
-        tdc->stop(); // Assuming a method to stop DAQ
+        tdc->stop(); 
     }
+
+    stopReadout = true;
+    dataAvailable.notify_all();
+    blockQueueCond.notify_all();
+
+    for (auto& thread : readoutThreads) {
+      if (thread.joinable()) {
+        thread.join();
+      }
+    }
+    readoutThreads.clear();
+
+    std::cout << "Forcing final readout of TDCs" << std::endl;
+    for (int i = 0; i < NUM_TDCS; i++) {
+      DataBank lastBank(("TDC" + std::to_string(i)).c_str());
+      unsigned int wordsRead = tdcs[i]->BLTRead(lastBank);
+
+      if (wordsRead > 0) {
+        std::lock_guard<std::mutex> lock(queueMutex);
+        bankQueue.push(std::move(lastBank));
+        dataAvailable.notify_one();
+      }
+    }
+
+if (!bankQueue.empty()) {
+        std::cout << "Flushing remaining data..." << std::endl;
+
+        Block finalBlock(blockID);
+
+        std::unique_lock<std::mutex> lock(queueMutex);
+        while (!bankQueue.empty()) {
+            DataBank dataBank = std::move(bankQueue.front());
+            bankQueue.pop();
+            lock.unlock();
+
+            finalBlock.addDataBank(dataBank);
+            lock.lock();
+        }
+        lock.unlock();
+
+        // Also add the last GATE and CUSP banks
+        DataBank GATE("GATE");
+        fpgas[0]->readFIFO(GATE, 0x0000);  
+        finalBlock.addDataBank(GATE);
+
+        DataBank CUSP("CUSP");        
+        auto now = std::chrono::system_clock::now();
+        auto now_ms = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()).count();
+        std::ifstream cuspFile("/path/to/cusp.txt");
+        if (cuspFile) {
+            int cuspValue;
+            cuspFile >> cuspValue;
+            Event eventCUSPrun;
+            eventCUSPrun.data.push_back(cuspValue);
+            eventCUSPrun.timestamp = now_ms;
+            CUSP.addEvent(eventCUSPrun);
+        }
+        finalBlock.addDataBank(CUSP);
+
+        // Serialize and push to file writer queue
+        std::vector<uint8_t> binaryData = finalBlock.serialize();
+        {
+            std::lock_guard<std::mutex> blockLock(blockQueueMutex);
+            blockQueue.push(std::move(binaryData));
+        }
+        blockQueueCond.notify_one();
+
+        blockID++; // Increment block ID
+    }
+
+    stopWriter = true;
+    blockQueueCond.notify_all();
+    fileWriterThread();
 
     std::cout << "Data acquisition stopped!" << std::endl;
 }
@@ -124,32 +324,3 @@ bool pause_run() {
 bool resume_run() {
   return vme.stopVeto();
 }
-
-
-void readoutLoopTDC(v1190& tdc, DataBank& dataBank) {
-  while (!stopReadout) {
-    unsigned int wordsRead = tdc.BLTRead(dataBank);
-    if (wordsRead > 0) {
-      std::lock_guard<std::mutex> lock(queueMutex);
-      dataAvailable.notify_one();
-    }
-  }
-}
-
-void processEvents() {
-  while(!stopReadout) {
-    std::unique_lock<std::mutex> lock(queueMutex);
-    dataAvailable.wait(lock, [] {return !eventQueue.empty() || stopReadout; });
-
-    if (stopReadout) break;
-
-    Event event = eventQueue.front();
-    eventQueue.pop();
-    lock.unlock();
-
-    //Process event
-
-  }
-}
-
-// test

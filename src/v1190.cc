@@ -144,6 +144,11 @@ float v1190::getFirmwareRevision(){
     return (1.0*highcsr + 0.1*lowcsr);
 }
 
+bool v1190::almostFull(){
+    unsigned short full = 0;
+    full = V1190AlmostFull(handle, vmeBaseAddress);
+    return (bool)full;
+}
 
 unsigned int v1190::BLTRead(DataBank& dataBank) {
     unsigned int* buff = NULL;

@@ -2,6 +2,10 @@
 #include <cstring>  // for memcpy, strncpy
 #include <iostream> // for debugging
 
+DataBank::DataBank() {}
+
+DataBank::~DataBank() {}
+
 DataBank::DataBank(const char* name) {
     strncpy(bankName, name, 4); // Copy exactly 4 characters
 }
@@ -49,4 +53,42 @@ const char* DataBank::getBankName() const {
 
 const std::vector<Event>& DataBank::getEvents() const {
     return events;
+}
+
+
+// ----- Blocks ----- 
+
+Block::Block(uint32_t id) : blockID(id) { }
+
+void Block::addDataBank(const DataBank& bank) {
+    banks.push_back(bank);
+}
+
+std::vector<uint8_t> Block::serialize() const {
+    std::vector<uint8_t> buffer;
+
+    // Write Block ID (4 bytes)
+    buffer.insert(buffer.end(), reinterpret_cast<const uint8_t*>(&blockID), 
+                  reinterpret_cast<const uint8_t*>(&blockID) + sizeof(blockID));
+
+    // Write number of banks (4 bytes)
+    uint32_t bankCount = banks.size();
+    buffer.insert(buffer.end(), reinterpret_cast<const uint8_t*>(&bankCount),
+                  reinterpret_cast<const uint8_t*>(&bankCount) + sizeof(bankCount));
+
+    // Serialize each bank
+    for (const auto& bank : banks) {
+        std::vector<uint8_t> bankData = bank.serialize();
+        buffer.insert(buffer.end(), bankData.begin(), bankData.end());
+    }
+
+    return buffer;
+}
+
+void Block::clear() {
+    banks.clear();
+}
+
+const std::vector<DataBank>& Block ::getDataBanks() const {
+    return banks;
 }
