@@ -7,6 +7,7 @@
 #include <CAENVMElib.h>
 #include "v1190.h"
 #include "dataBanks.hh"
+#include "logger.hh"
 
 class v1190 {
 

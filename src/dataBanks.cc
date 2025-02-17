@@ -89,6 +89,6 @@ void Block::clear() {
     banks.clear();
 }
 
-const std::vector<DataBank>& Block ::getDataBanks() const {
+const std::vector<DataBank>& Block::getDataBanks() const {
     return banks;
 }

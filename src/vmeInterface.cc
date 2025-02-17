@@ -12,13 +12,18 @@ VMEInterface::~VMEInterface() {
 }
 
 bool VMEInterface::init() {
+
+    auto log = Logger::getLogger();
+
     char ip[24];
     uint32_t link = 0;
     CVBoardTypes BType = cvETH_V4718;
     // call VME Init
     void* arg = BType == cvETH_V4718 ? (void*)ip : (void*)&link;
     if (CAENVME_Init2(BType, arg, 0, &handle) != cvSuccess) {
-        printf("Can't open VME controller\n");
+        // printf("Can't open VME controller\n");
+
+        log->error("Can't open VME controller");
         Sleep(1000);
         return false;
     }
@@ -34,18 +39,22 @@ bool VMEInterface::init() {
 }
 
 bool VMEInterface::write(uint32_t offset, uint16_t data) {
+    auto log = Logger::getLogger();
     int status = CAENVME_WriteCycle(handle, vmeBaseAddress + offset, &data, cvA24_U_DATA, cvD16);
     if (status != cvSuccess) {
-        std::cerr << "VME Write failed: " << status << " at offset: " << std::hex << offset << std::endl;
+        // std::cerr << "VME Write failed: " << status << " at offset: " << std::hex << offset << std::endl;
+        log->error("VME Write failed: {0:d} at offset {1:#x}", status, offset);
         return false;
     }
     return true;
 }
 
 bool VMEInterface::read(uint32_t offset, uint16_t &data) {
+    auto log = Logger::getLogger();
     int status = CAENVME_ReadCycle(handle, vmeBaseAddress + offset, &data, cvA24_U_DATA, cvD16);
     if (status != cvSuccess) {
-        std::cerr << "VME Read failed: " << status << " at offset: " << std::hex << offset << std::endl;
+        // std::cerr << "VME Read failed: " << status << " at offset: " << std::hex << offset << std::endl;
+        log->error("VME Read failed:  {0:d} at offset {1:#x}", status, offset);
         return false;
     }
     return true;

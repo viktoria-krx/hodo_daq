@@ -2,6 +2,8 @@
 #include "v2495.hh"
 #include "dataBanks.hh"
 #include "vmeInterface.hh"
+#include "logger.hh"
+
 #include <iostream>
 #include <vector>
 #include <memory>
@@ -34,7 +36,7 @@ VMEInterface vme(BridgeBaseAddress);
 
 // Thread safe readout 
 std::queue<DataBank> bankQueue;
-std::mutex queueMutex;
+std::mutex bankQueueMutex;
 std::condition_variable dataAvailable;
 bool stopReadout = false;
 
@@ -49,6 +51,13 @@ std::vector<std::thread> readoutThreads;
 uint32_t blockID = 0;
 
 int main() {
+
+  Logger::init();
+  auto log = Logger::getLogger();
+
+  log->info("Hiya!");
+  log->debug("Oy!");
+
   vme.init();
 
   int handle = vme.getHandle();
@@ -64,9 +73,11 @@ int main() {
     V1190Status[i] &= tdcs[i]->init(i);
 
     if (V1190Status[i]) {
-      printf("\nV1190 module %d is online\n", i);
+      log->info("V1190 module {0:d} is online", i);
+      // printf("\nV1190 module %d is online\n", i);
     } else {
-      printf("\nV1190 module %d is NOT online!\n", i);
+      log->warn("V1190 module {0:d} is NOT online!", i);
+      // printf("\nV1190 module %d is NOT online!\n", i);
     }
   }
 
@@ -104,7 +115,7 @@ void startReadoutThread(v1190& tdc, std::string bankName) {
       unsigned int wordsRead = tdc.BLTRead(dataBank);
 
       if (wordsRead > 0) {
-        std::lock_guard<std::mutex> lock(queueMutex);
+        std::lock_guard<std::mutex> lock(bankQueueMutex);
         bankQueue.push(std::move(dataBank));
         dataAvailable.notify_one();
       }
@@ -136,7 +147,7 @@ void fileWriterThread() {
 
 void processEvents() {
   while(!stopReadout) {
-    std::unique_lock<std::mutex> lock(queueMutex);
+    std::unique_lock<std::mutex> lock(bankQueueMutex);
     dataAvailable.wait(lock, [] {return !bankQueue.empty() || stopReadout; });
 
     if (stopReadout) break;
@@ -212,11 +223,16 @@ void polling() {
 
 
 bool start_run() {
-    std::cout << "Starting data acquisition..." << std::endl;
+
+    auto log = Logger::getLogger();
+
+    log->info("Starting data acquisition...");
+    // std::cout << "Starting data acquisition..." << std::endl;
 
     for (auto tdc : tdcs) {
         if (!tdc->start()) { // Assuming a method to start DAQ
-            std::cerr << "Failed to start acquisition on TDC!" << std::endl;
+            // std::cerr << "Failed to start acquisition on TDC!" << std::endl;
+            log->error("Failed to start data acquisition on TDC!");
             return false;
         }
     }
@@ -230,12 +246,17 @@ bool start_run() {
     // }
 
     vme.stopVeto();
-    std::cout << "Data acquisition started!" << std::endl;
+    log->info("Data acquisition started!");
+    // std::cout << "Data acquisition started!" << std::endl;
     return true;
 }
 
 void stop_run() {
-    std::cout << "Stopping data acquisition..." << std::endl;
+
+    auto log = Logger::getLogger();
+
+    log->info("Stopping data acquisition...");
+    // std::cout << "Stopping data acquisition..." << std::endl;
 
     for (auto tdc : tdcs) {
         tdc->stop(); 
@@ -252,24 +273,29 @@ void stop_run() {
     }
     readoutThreads.clear();
 
-    std::cout << "Forcing final readout of TDCs" << std::endl;
+    log->debug("Forcing final readout of TDCs");
+
+    // std::cout << "Forcing final readout of TDCs" << std::endl;
     for (int i = 0; i < NUM_TDCS; i++) {
       DataBank lastBank(("TDC" + std::to_string(i)).c_str());
       unsigned int wordsRead = tdcs[i]->BLTRead(lastBank);
 
       if (wordsRead > 0) {
-        std::lock_guard<std::mutex> lock(queueMutex);
+        std::lock_guard<std::mutex> lock(bankQueueMutex);
         bankQueue.push(std::move(lastBank));
         dataAvailable.notify_one();
       }
     }
 
 if (!bankQueue.empty()) {
-        std::cout << "Flushing remaining data..." << std::endl;
+
+        log->debug("Flushing remaining data...");
+
+        // std::cout << "Flushing remaining data..." << std::endl;
 
         Block finalBlock(blockID);
 
-        std::unique_lock<std::mutex> lock(queueMutex);
+        std::unique_lock<std::mutex> lock(bankQueueMutex);
         while (!bankQueue.empty()) {
             DataBank dataBank = std::move(bankQueue.front());
             bankQueue.pop();
@@ -314,7 +340,8 @@ if (!bankQueue.empty()) {
     blockQueueCond.notify_all();
     fileWriterThread();
 
-    std::cout << "Data acquisition stopped!" << std::endl;
+    // std::cout << "Data acquisition stopped!" << std::endl;
+    log->info("Data acquisition stopped");
 }
 
 bool pause_run() {

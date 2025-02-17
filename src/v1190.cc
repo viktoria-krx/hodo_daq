@@ -32,6 +32,10 @@ bool v1190::init(int tdcId){
 
 bool v1190::setupV1190(int tdcId){
 
+    auto log = Logger::getLogger();
+
+    log->info("TDC {:d} is being set up", tdcId);
+
     bool retVal = true;
 
     int status;
@@ -47,15 +51,18 @@ bool v1190::setupV1190(int tdcId){
     cr = V1190ReadControlRegister(handle, vmeBaseAddress);
 
     // cr = v1190_EnableFifo(vme, vmeBaseAdress);
-    printf("\n  Control register status (FIFO ON bit6): 0x%04x \n", cr );
+    // printf("\n  Control register status (FIFO ON bit6): 0x%04x \n", cr );
+    log->debug("Control register status (FIFO ON bit6): {0:#x}", cr);
 
     //////////////////////////////////////////////////////////////
 
     ettt = V1190_EnableETTT(handle, vmeBaseAddress);
-    printf("  ETTT enabled             : 0x%08x \n", ettt ); 
+    // printf("  ETTT enabled             : 0x%08x \n", ettt ); 
+    log->debug("ETTT enabled             : {0:#x}", ettt );
 
     V1190SetBltEvtNr(0x0000, handle, vmeBaseAddress);
-    printf("  BLT set                  : 0x%04x \n", blt );
+    // printf("  BLT set                  : 0x%04x \n", blt );
+    log->debug("BLT set                  :{0:#x}", blt );
 
     //////////////////////////////////////////////////////////////
 
@@ -118,6 +125,7 @@ bool v1190::setupV1190(int tdcId){
     code[1] = 0x1;
     value = V1190WriteOpcode(2, code, handle, vmeBaseAddress);
 
+    log->info("TDC {:d} was set up", tdcId);
 
     return retVal;
 }
@@ -125,10 +133,13 @@ bool v1190::setupV1190(int tdcId){
 
 bool v1190::checkModuleResponse(){
 
+    auto log = Logger::getLogger();
+
     int dummy = 0;
     V1190WriteDummyValue(0x1111, handle, vmeBaseAddress);
     dummy = V1190ReadDummyValue(handle, vmeBaseAddress);
 
+    log->debug("Checking response of TDC; dummy == {:#x}", dummy);
     // std::cout << "dummy " << dummy << std::endl;
     if (dummy == 0x1111) return true;
     else return false;
@@ -151,12 +162,16 @@ bool v1190::almostFull(){
 }
 
 unsigned int v1190::BLTRead(DataBank& dataBank) {
+
+    auto log = Logger::getLogger();
+
     unsigned int* buff = NULL;
     int BufferSize;
 
     BufferSize = 1024 * 1024;
 	if ((buff = (unsigned int*)malloc(BufferSize)) == NULL) {
-		printf("Can't allocate memory buffer of %d KB\n", BufferSize / 1024);
+        log->error("Can't allocate memory buffer of {:d} KB\n", BufferSize / 1024);
+		// printf("Can't allocate memory buffer of %d KB\n", BufferSize / 1024);
 		return 0;
 	}
 
@@ -165,12 +180,14 @@ unsigned int v1190::BLTRead(DataBank& dataBank) {
     unsigned int ret = V1190BLTRead(buff, BufferSize, bytesRead, handle, vmeBaseAddress);
 
     if (ret != cvSuccess && ret != cvBusError) {
-        std::cerr << "BLT Readout Error" << std::endl;
+        log->error("BLT Readout Error");
+        // std::cerr << "BLT Readout Error" << std::endl;
         return ret;
     }
 
     int n_words = bytesRead / 4;
-    printf("%i words read\n", n_words);
+    // printf("%i words read\n", n_words);
+    log->debug("{:d} words read", n_words);
 
 
     Event currentEvent;
@@ -349,30 +366,39 @@ void v1190::getPara()
     unsigned short value;
     unsigned short code[10] = { 0 };
 
+    auto log = Logger::getLogger();
+
     // cm_msg(MINFO,"vmefrontend","V1190 TDC at VME A24 0x%06x:\n", vmeBaseAdress);
 
     // WORD code = 0x1600;
 
     code[0] = 0x1600;
     if ((value = V1190WriteOpcode(1, code, handle, vmeBaseAddress)) < 0) {
-        std::cerr << "Couldn't read opcode!" << std::endl;
+        log->error("Couldn't read opcode!");
+        // std::cerr << "Couldn't read opcode!" << std::endl;
     }
 
     value = V1190ReadRegister(OPCODE, handle, vmeBaseAddress);
-    printf("  Match Window width       : 0x%04x, %d ns\n", value, value*ns);
+    // printf("  Match Window width       : 0x%04x, %d ns\n", value, value*ns);
+    log->info("  Match Window width       : {:#x}, {:d} ns", value, value*ns);
     value = V1190ReadRegister(OPCODE, handle, vmeBaseAddress);
-    printf("  Window offset            : 0x%04x, %d ns\n", value, (value - (0xffff + 0x0001))*ns);
+    // printf("  Window offset            : 0x%04x, %d ns\n", value, (value - (0xffff + 0x0001))*ns);
+    log->info("  Window offset            : {:#x}, {:d} ns", value, (value - (0xffff + 0x0001))*ns);
     value = V1190ReadRegister(OPCODE, handle, vmeBaseAddress);
-    printf("  Extra Search Window Width: 0x%04x, %d ns\n", value, value*ns);
+    // printf("  Extra Search Window Width: 0x%04x, %d ns\n", value, value*ns);
+    log->info("  Extra Search Window Width: {:#x}, {:d} ns", value, value*ns);
     value = V1190ReadRegister(OPCODE, handle, vmeBaseAddress);
-    printf("  Reject Margin            : 0x%04x, %d ns\n", value, value*ns);
+    // printf("  Reject Margin            : 0x%04x, %d ns\n", value, value*ns);
+    log->info("  Reject Margin            : {:#x}, {:d} ns", value, value*ns);
     value = V1190ReadRegister(OPCODE, handle, vmeBaseAddress);
-    printf("  Trigger Time subtraction : %s\n",(value & 0x1) ? "y" : "n");
+    // printf("  Trigger Time subtraction : %s\n",(value & 0x1) ? "y" : "n");
+    log->info("  Trigger Time subtraction : {:s}",(value & 0x1) ? "y" : "n");
 
     code[0] = 0x2300;
     value = V1190WriteOpcode(1, code, handle, vmeBaseAddress);
     value = V1190ReadRegister(OPCODE, handle, vmeBaseAddress);
-    printf("  Edge Detection (0:P/1:T/2:L/3:TL) : 0x%02x\n", (value&0x3));
+    // printf("  Edge Detection (0:P/1:T/2:L/3:TL) : 0x%02x\n", (value&0x3));
+    log->info("  Edge Detection (0:P/1:T/2:L/3:TL) : {:#x}", (value&0x3));
 
     unsigned short edge = (value&0x3);
 
@@ -380,16 +406,23 @@ void v1190::getPara()
     value = V1190WriteOpcode(1, code, handle, vmeBaseAddress);
     value = V1190ReadRegister(OPCODE, handle, vmeBaseAddress);
     if (edge == 0x00) {
-        printf("  Resolution Edge      : 0x%04x\n", value & 0x0007);
-        printf("  Resolution Width     : 0x%04x\n", (value & 0x0F00) >> 8);
+        // printf("  Resolution Edge      : 0x%04x\n", value & 0x0007);
+        // printf("  Resolution Width     : 0x%04x\n", (value & 0x0F00) >> 8);
+
+        log->info("  Resolution Edge      : {:#x}", value & 0x0007);
+        log->info("  Resolution Width     : {:#x}", (value & 0x0F00) >> 8);
+
     } else {
-        printf(" Resolution Edges      : 0x%04x\n", value & 0x0003);
+        // printf(" Resolution Edges      : 0x%04x\n", value & 0x0003);
+        log->info("  Resolution Edges     : {:#x}", value & 0x0003);
     }
 
 }
 
 void v1190::getStatusReg()
 {
+    auto log = Logger::getLogger();
+
     int sr;
     sr = V1190ReadStatusRegister(handle, vmeBaseAddress);
     // sr = v1190_GetStatusReg(vme, vmeBaseAdress);
@@ -405,7 +438,8 @@ void v1190::getStatusReg()
     int srFutsui9 = 0x203B; 
     if((sr != srFutsui1) && (sr != srFutsui2) && (sr != srFutsui3) && (sr != srFutsui4) && (sr != srFutsui5) && (sr != srFutsui6) && (sr != srFutsui7) && (sr != srFutsui8) && (sr != srFutsui9))
     {
-        printf("\nStrange status register! 0x%04X\n",sr);
+        // printf("\nStrange status register! 0x%04X\n",sr);
+        log->error("Strange status register! {:#x}",sr);
         // cm_msg(MERROR, "vmefrontend", "Strange status register! 0x%04X",sr);
     }
 }

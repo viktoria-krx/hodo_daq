@@ -11,7 +11,10 @@ v2495::v2495(int ConnType, char* IpAddr, int SerialNumber, char* vmeBaseAddress,
 
 int v2495::init(int fpgaId){
 
-    printf("  Trying to connect to the V2495 module\n");
+    auto log = Logger::getLogger();
+
+    // printf("  Trying to connect to the V2495 module\n");
+    log->info("Trying to connect to the V2495 module");
 
     switch (ConnType) {
         case 4: // ETH V4718
@@ -28,13 +31,16 @@ int v2495::init(int fpgaId){
 	}
 
     if (ret != 0) {
-		printf("  The V2495 module cannot be accessed!\n");
+		// printf("  The V2495 module cannot be accessed!\n");
+        log->error("The V2495 module cannot be accessed!");
     } else {
-        printf("  A connection with the V2495 module has been established\n");
+        // printf("  A connection with the V2495 module has been established\n");
+        log->info("A connection with the V2495 module has been established");
     }
 
     if (CAEN_PLU_ReadReg(handle, MAIN_FIRMWARE_REVISION, data) < 0) {
-			printf("ERROR: the main firmware revision cannot be read\n");
+			// printf("ERROR: the main firmware revision cannot be read\n");
+            log->error("The main firmware revision cannot be read");
 			return -1;
 	}
 
@@ -76,13 +82,17 @@ int v2495::setRegister(uint32_t value, uint32_t regAddress){
 }
 
 int v2495::readFIFO(DataBank& dataBank, uint32_t regAddress) {
+
+    auto log = Logger::getLogger();
+
     unsigned int* buff = NULL;
     int BufferSize;
 
     BufferSize = 1024 * 1024;
 	if ((buff = (unsigned int*)malloc(BufferSize)) == NULL) {
-		printf("Can't allocate memory buffer of %d KB\n", BufferSize / 1024);
-		
+		// printf("Can't allocate memory buffer of %d KB\n", BufferSize / 1024);
+        
+        log->error("Can't allocate memory buffer of {:d} KB\n", BufferSize / 1024);
 	}
 
     addr = getBaseAddr() + regAddress;
@@ -92,11 +102,13 @@ int v2495::readFIFO(DataBank& dataBank, uint32_t regAddress) {
     int ret = CAEN_PLU_ReadFIFO32(handle, addr, BufferSize, buff, &n_words);
 
     if (ret != cvSuccess && ret != cvBusError) {
-        std::cerr << "FIFO Readout Error" << std::endl;
+        // std::cerr << "FIFO Readout Error" << std::endl;
+        log->error("FIFO Readout Error");
         return ret;
     }
 
-    printf("%i words read\n", n_words);
+    // printf("%i words read\n", n_words);
+    log->debug("{:d} words read", n_words);
 
 
     Event currentEvent;

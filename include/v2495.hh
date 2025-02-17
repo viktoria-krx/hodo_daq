@@ -11,6 +11,7 @@
 #include <CAEN_PLULib.h>
 #include "dataBanks.hh"
 #include <cstdlib>
+#include "logger.hh"
 
 class v2495 {
 

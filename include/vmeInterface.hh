@@ -2,6 +2,7 @@
 #define VME_INTERFACE_HH
 
 #include <stdint.h>
+#include "logger.hh"
 
 #define VME_STATUS      0x00
 #define VME_CONTROL     0x01

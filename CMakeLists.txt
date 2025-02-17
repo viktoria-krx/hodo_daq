@@ -14,8 +14,10 @@ set(CMAKE_CXX_COMPILER "/usr/bin/g++")
 set(CAENVMELIB_PATH "/home/viktoria/software/CAEN/CAENVMELib-v3.4.3/")
 set(CAENPLULIB_PATH "/home/viktoria/software/CAEN/CAEN_PLU-1.2")
 
-#find_library(CAENVMELIB NAMES CAENVMELib PATHS /usr/lib/libCAENVME.so)
+set(CMAKE_PREFIX_PATH ${CMAKE_PREFIX_PATH} /home/viktoria/Documents/Hodoscope/blt_frontend/spdlog/build/)
 
+#find_library(CAENVMELIB NAMES CAENVMELib PATHS /usr/lib/libCAENVME.so)
+find_package(spdlog REQUIRED)
 
 #if (NOT CAENVMELIB)
 #    message(FATAL_ERROR "CAENVME library not found in ${CAENVMELIB_PATH}. Check the path!")
@@ -26,4 +28,4 @@ include_directories(${CAENVMELIB_PATH}/include)
 include_directories(${CAENPLULIB_PATH}/include)
 
 add_executable(hodo_daq frontend.cc ${sources})
-target_link_libraries(hodo_daq /usr/lib/libCAENVME.so /usr/lib/libCAEN_PLU.so)
+target_link_libraries(hodo_daq /usr/lib/libCAENVME.so /usr/lib/libCAEN_PLU.so spdlog::spdlog)
