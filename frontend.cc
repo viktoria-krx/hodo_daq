@@ -13,6 +13,9 @@
 #include <mutex>
 #include <condition_variable>
 #include <fstream>
+#include <sstream>
+#include <iomanip>
+#include <map>
 
 #define NUM_TDCS 4
 #define NUM_FPGAS 1
@@ -23,22 +26,25 @@ v2495 *fpgas[NUM_FPGAS];
 int V2495Status[NUM_FPGAS];
 
 // Define all base addresses:
-
 static const unsigned int BridgeBaseAddress = 0x90000000;
-
 static const unsigned int TDCbaseAddresses[] = {0x90900000, 0x90910000, 0x90920000, 0x90930000};
-
 const char* FPGAbaseAddress = "32100000";
 const char* FPGAipAddress = "192.168.1.254";
 static const unsigned int FPGAserialNumber = 28;
 
 VMEInterface vme(BridgeBaseAddress);
 
+// Config file for run number: 
+const std::string runconfig = "../config/frontend.conf";
+std::map<std::string, std::string> config;
+
 // Thread safe readout 
 std::queue<DataBank> bankQueue;
 std::mutex bankQueueMutex;
 std::condition_variable dataAvailable;
 bool stopReadout = false;
+std::vector<std::thread> readoutThreads;
+std::thread pollingThread;
 
 // Thread safe writing
 std::queue<std::vector<uint8_t>> blockQueue;
@@ -46,67 +52,94 @@ std::mutex blockQueueMutex;
 std::condition_variable blockQueueCond;
 bool stopWriter = false;
 
-std::vector<std::thread> readoutThreads;
+uint32_t blockID = 0; // ID of each BLT block
 
-uint32_t blockID = 0;
 
-int main() {
 
-  Logger::init();
-  auto log = Logger::getLogger();
+/**
+ * @brief Load configuration from a file.
+ *
+ * This function reads a configuration file at the location specified by
+ * the global variable `runconfig`. The file should contain lines of the form
+ * "key=value". The resulting key-value pairs are stored in the global
+ * `config` map.
+ *
+ * @return the config map
+ */
+std::map<std::string, std::string> loadConfig() {
 
-  log->info("Hiya!");
-  log->debug("Oy!");
+    auto log = Logger::getLogger();
 
-  vme.init();
-
-  int handle = vme.getHandle();
-  vme.startVeto();
-  // Connect to all TDCs:
-
-  for(int i=0; i<NUM_TDCS; i++){
-    tdcs[i] = new v1190(TDCbaseAddresses[i], handle);
-  }
-
-  for(int i=0; i<NUM_TDCS; i++){
-    // V1190Status[i] = tdcs[i]->checkModuleResponse(); // this is already called in the init function
-    V1190Status[i] &= tdcs[i]->init(i);
-
-    if (V1190Status[i]) {
-      log->info("V1190 module {0:d} is online", i);
-      // printf("\nV1190 module %d is online\n", i);
-    } else {
-      log->warn("V1190 module {0:d} is NOT online!", i);
-      // printf("\nV1190 module %d is NOT online!\n", i);
+    std::ifstream file(runconfig);
+    // std::map<std::string, std::string> config;
+    std::string line;
+    
+    if (!file.is_open()) {
+      log->error("Could not open config file!");
+      return config;
     }
-  }
 
-  // Connect to FPGA:
-  // ConnType 4 : CAEN_PLU_CONNECT_VME_V4718_ETH
-  // ConnType 5 : CAEN_PLU_CONNECT_VME_V4718_USB
-  // ConnType 6 : CAEN_PLU_CONNECT_VME_A4818
-
-  for(int i=0; i<NUM_FPGAS; i++){
-    fpgas[i] = new v2495(4, (char*)FPGAipAddress, FPGAserialNumber, (char*)FPGAbaseAddress, handle);
-  }
-
-  for(int i=0; i<NUM_FPGAS; i++){
-    V2495Status[i] = fpgas[i]->init(i); // Opens connection
-  }
-
-
-  return 0;
+    while (std::getline(file, line)) {
+        std::istringstream ss(line);
+        std::string key, value;
+        if (std::getline(ss, key, '=') && std::getline(ss, value)) {
+            config[key] = value;
+            log->debug("{0} = {1}", key, value);
+        }
+    }
+    return config;
 }
 
-int frontend_exit() {
-  for(int i=0; i<NUM_TDCS; i++){
-    delete tdcs[i];
-  }
-  vme.close();
-  return 0;
+/**
+ * @brief Save the current configuration to a file.
+ *
+ * The configuration is written to the file specified by the global
+ * variable `runconfig`. The file should contain lines of the form
+ * "key=value".
+ *
+ * @param config The configuration to be saved.
+ */
+void saveConfig(const std::map<std::string, std::string>& config) {
+    std::ofstream file(runconfig);
+    for (const auto& [key, value] : config) {
+        file << key << "=" << value << "\n";
+    }
 }
 
 
+/**
+ * @brief Create a filename for a run given a run number, a path, and a
+ *        filename prefix.
+ *
+ * The filename is created by concatenating the path and the prefix with the
+ * run number (padded with zeros to at least 6 digits).
+ *
+ * @param runNumber The run number.
+ * @param path The path to the file.
+ * @param prefix The filename prefix.
+ *
+ * @return A pointer to a C-string containing the filename. The caller must
+ *         free this memory when it is no longer needed.
+ */
+char* getRunFilename(int runNumber, const std::string& path, const std::string& prefix) {
+    std::ostringstream filename;
+    filename << path << "/" << prefix << std::setw(6) << std::setfill('0') << runNumber << ".bin";
+
+    return strdup(filename.str().c_str());  // Allocate memory for C-string (must be freed)
+}
+
+
+/**
+ * @brief Starts a readout thread for a given TDC.
+ *
+ * This function launches a new thread that continuously reads data from
+ * the specified TDC (Time-to-Digital Converter) and stores the data in a
+ * thread-safe queue. The thread runs until `stopReadout` is set to true.
+ * Each `DataBank` is named with the provided bankName.
+ *
+ * @param tdc Reference to the TDC from which to read data.
+ * @param bankName The name to be assigned to each `DataBank` created.
+ */
 
 void startReadoutThread(v1190& tdc, std::string bankName) {
   readoutThreads.emplace_back([&tdc, bankName] () {
@@ -124,12 +157,38 @@ void startReadoutThread(v1190& tdc, std::string bankName) {
   });
 }
 
+/**
+ * @brief Write a block of data to a binary file.
+ *
+ * This function appends the given data block to a binary file associated
+ * with the current run number. The filename is constructed using the
+ * "run_number", "data_path" and "file_prefix" configuration values.
+ *
+ * @param data The block of data to write to the file.
+ */
 void writeBinFile(const std::vector<uint8_t>& data) {
-  FILE* file = fopen("output.bin", "ab");
+
+  int runNumber = std::stoi(config["run_number"]);
+  // Get filename as char*
+  char* filename = getRunFilename(runNumber, config["data_path"], config["file_prefix"]);
+  // log->info("Starting run {0:d}, saving data to: {1}", runNumber, filename);
+
+  FILE* file = fopen(filename, "ab");
   fwrite(data.data(), 1, data.size(), file);
   fclose(file);
+  free(filename);
 }
 
+/**
+ * @brief A thread that writes binary data to a file.
+ *
+ * This function is launched in a separate thread and waits for data blocks
+ * to appear in the block queue. Once a block is available, it is written to
+ * a binary file associated with the current run number.
+ *
+ * @note This function will only terminate once the readout has been stopped
+ *       using the `stop_run` function.
+ */
 void fileWriterThread() {
   while(!stopReadout) {
       std::unique_lock<std::mutex> lock(blockQueueMutex);
@@ -144,6 +203,19 @@ void fileWriterThread() {
 }
 
 
+
+/**
+ * @brief Processes events from the bank queue and prepares them for writing.
+ * 
+ * This function continuously monitors the bank queue for available data
+ * banks while the readout is active. It collects data banks into a block,
+ * adds additional GATE and CUSP data banks with information on the run number,
+ * and serializes the block for writing. The serialized block is then
+ * added to the block queue for further processing.
+ * 
+ * The function will terminate once the readout is stopped by setting
+ * `stopReadout` to true.
+ */
 
 void processEvents() {
   while(!stopReadout) {
@@ -192,6 +264,17 @@ void processEvents() {
   }
 }
 
+/**
+ * @brief Monitors the TDCs and initiates readout when almost full.
+ *
+ * This function continuously checks the status of all TDCs to determine if any
+ * of them are almost full. If a TDC is almost full, it starts a readout thread
+ * for all TDCs to prevent data loss. The function runs while the readout is
+ * active and pauses briefly between checks to reduce CPU usage.
+ *
+ * The function terminates once `stopReadout` is set to true.
+ */
+
 void polling() {
 
   bool isfull = false;
@@ -222,6 +305,17 @@ void polling() {
 
 
 
+/**
+ * @brief Starts a new run by initializing the TDCs and starting the polling thread.
+ *
+ * This function starts a new run by incrementing the run number, saving it to
+ * the configuration file, and initializing all TDCs and the FPGA. It also starts the
+ * polling thread which checks the status of all TDCs to determine if any
+ * of them are almost full. If a TDC is almost full, it starts a readout thread
+ * for all TDCs to prevent data loss.
+ *
+ * @return true if the run was started successfully, false otherwise.
+ */
 bool start_run() {
 
     auto log = Logger::getLogger();
@@ -229,8 +323,16 @@ bool start_run() {
     log->info("Starting data acquisition...");
     // std::cout << "Starting data acquisition..." << std::endl;
 
+    int runNumber = std::stoi(config["run_number"]) + 1;
+    config["run_number"] = std::to_string(runNumber);
+    saveConfig(config);  // Save updated run number
+
+  // Get filename as char*
+    // char* filename = getRunFilename(runNumber, config["data_path"], config["file_prefix"]);
+    log->info("Starting run {0:d}", runNumber);
+
     for (auto tdc : tdcs) {
-        if (!tdc->start()) { // Assuming a method to start DAQ
+        if (!tdc->start()) { 
             // std::cerr << "Failed to start acquisition on TDC!" << std::endl;
             log->error("Failed to start data acquisition on TDC!");
             return false;
@@ -245,11 +347,26 @@ bool start_run() {
     //   }
     // }
 
+    stopReadout = false;  
+    pollingThread = std::thread(polling);
+
+
     vme.stopVeto();
     log->info("Data acquisition started!");
     // std::cout << "Data acquisition started!" << std::endl;
     return true;
 }
+
+/**
+ * @brief Stops the data acquisition process and finalizes the readout.
+ *
+ * This function halts the data acquisition by stopping all TDCs and
+ * signaling the termination of ongoing readout and writing operations.
+ * It notifies waiting threads to proceed, joins all active threads, and
+ * ensures that any remaining data in the queues is processed and written
+ * to the output files. The function also performs a final readout of the
+ * TDCs to capture any last bits of data before concluding the run.
+ */
 
 void stop_run() {
 
@@ -265,6 +382,10 @@ void stop_run() {
     stopReadout = true;
     dataAvailable.notify_all();
     blockQueueCond.notify_all();
+
+    if (pollingThread.joinable()) {
+        pollingThread.join();  // Wait for polling thread to finish
+    }
 
     for (auto& thread : readoutThreads) {
       if (thread.joinable()) {
@@ -344,10 +465,109 @@ if (!bankQueue.empty()) {
     log->info("Data acquisition stopped");
 }
 
+/**
+ * @brief Pauses the data acquisition.
+ *
+ * This function will pause the data acquisition by sending a software
+ * trigger to the VME controller, which will then pause the run.
+ *
+ * @return true on success, false otherwise.
+ */
 bool pause_run() {
   return vme.startVeto();
 }
 
+/**
+ * @brief Resumes the data acquisition.
+ *
+ * This function will resume the data acquisition by clearing the software
+ * trigger in the VME controller, which will then resume the run.
+ *
+ * @return true on success, false otherwise.
+ */
 bool resume_run() {
   return vme.stopVeto();
+}
+
+
+/**
+ * @brief Cleans up resources and exits the frontend.
+ *
+ * This function deletes all allocated TDC and FPGA objects, and closes the VME interface.
+ * It ensures that all dynamically allocated resources are properly released before exiting.
+ *
+ * @return 0 indicating successful cleanup and exit.
+ */
+
+int frontend_exit() {
+  for(int i=0; i<NUM_TDCS; i++){
+    delete tdcs[i];
+  }
+  for(int i=0; i<NUM_FPGAS; i++){
+    delete fpgas[i];
+  }
+  vme.close();
+  return 0;
+}
+
+/**
+ * @brief The main entry point of the frontend application.
+ *
+ * This function initializes the frontend, loads the configuration file,
+ * connects to the VME interface, and initializes all connected TDCs and
+ * FPGAs. 
+ *
+ * @return 0 indicating successful execution.
+ */
+int main() {
+
+  Logger::init();
+  auto log = Logger::getLogger();
+
+  log->info("Hiya!");
+  log->debug("Oy!");
+
+  std::map<std::string, std::string> config = loadConfig();
+
+  int runNumber = std::stoi(config["run_number"]);
+  log->info("Current run number: {0:d}", runNumber);
+
+  vme.init();
+
+  int handle = vme.getHandle();
+  vme.startVeto();
+  // Connect to all TDCs:
+
+  for(int i=0; i<NUM_TDCS; i++){
+    tdcs[i] = new v1190(TDCbaseAddresses[i], handle);
+  }
+
+  for(int i=0; i<NUM_TDCS; i++){
+    // V1190Status[i] = tdcs[i]->checkModuleResponse(); // this is already called in the init function
+    V1190Status[i] &= tdcs[i]->init(i);
+
+    if (V1190Status[i]) {
+      log->info("V1190 module {0:d} is online", i);
+      // printf("\nV1190 module %d is online\n", i);
+    } else {
+      log->warn("V1190 module {0:d} is NOT online!", i);
+      // printf("\nV1190 module %d is NOT online!\n", i);
+    }
+  }
+
+  // Connect to FPGA:
+  // ConnType 4 : CAEN_PLU_CONNECT_VME_V4718_ETH
+  // ConnType 5 : CAEN_PLU_CONNECT_VME_V4718_USB
+  // ConnType 6 : CAEN_PLU_CONNECT_VME_A4818
+
+  for(int i=0; i<NUM_FPGAS; i++){
+    fpgas[i] = new v2495(4, (char*)FPGAipAddress, FPGAserialNumber, (char*)FPGAbaseAddress, handle);
+  }
+
+  for(int i=0; i<NUM_FPGAS; i++){
+    V2495Status[i] = fpgas[i]->init(i); // Opens connection
+  }
+
+  
+  return 0;
 }

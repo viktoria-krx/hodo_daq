@@ -10,10 +10,29 @@ DataBank::DataBank(const char* name) {
     strncpy(bankName, name, 4); // Copy exactly 4 characters
 }
 
+/**
+ * @brief Adds an event to the data bank.
+ *
+ * @param event The event to be added to the data bank.
+ */
+
 void DataBank::addEvent(const Event& event) {
     events.push_back(event);
 }
 
+/**
+ * @brief Serialize the data bank for writing.
+ *
+ * The format of the serialized data bank is as follows:
+ * 1. The 4-character bank name (ASCII)
+ * 2. The number of events in the bank (uint32_t)
+ * 3. For each event:
+ *    a. The timestamp of the event (uint32_t)
+ *    b. The number of data points in the event (uint32_t)
+ *    c. The data points themselves (uint32_t array)
+ *
+ * @return The serialized data bank as a vector of bytes.
+ */
 std::vector<uint8_t> DataBank::serialize() const {
     std::vector<uint8_t> buffer;
 
@@ -36,7 +55,7 @@ std::vector<uint8_t> DataBank::serialize() const {
 
         if (!event.data.empty()) {
             buffer.insert(buffer.end(), reinterpret_cast<const uint8_t*>(event.data.data()),
-                          reinterpret_cast<const uint8_t*>(event.data.data()) + dataSize * sizeof(uint16_t));
+                          reinterpret_cast<const uint8_t*>(event.data.data()) + dataSize * sizeof(uint32_t));
         }
     }
 
@@ -64,6 +83,17 @@ void Block::addDataBank(const DataBank& bank) {
     banks.push_back(bank);
 }
 
+    /**
+     * @brief Serialize the block into a binary vector.
+     * 
+     * This function returns a binary vector that contains all the data in the block.
+     * The vector is ordered as follows:
+     * - Block ID (4 bytes)
+     * - Number of DataBanks (4 bytes)
+     * - Serialized DataBanks (order is not guaranteed)
+     * 
+     * @return A binary vector containing the serialized block data.
+     */
 std::vector<uint8_t> Block::serialize() const {
     std::vector<uint8_t> buffer;
 

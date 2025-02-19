@@ -16,6 +16,18 @@ v1190::v1190(int vmeBaseAddress, int handle)
     : vmeBaseAddress(vmeBaseAddress), handle(handle) {
 }
 
+/**
+ * @brief Initializes the V1190 module with the given TDC ID.
+ *
+ * This function first checks the module's response to ensure it is operational.
+ * It then sets up the V1190 module using the provided TDC ID, retrieves 
+ * parameters, and updates the status register. If any step fails, the 
+ * initialization process returns false.
+ *
+ * @param tdcId The ID of the TDC to initialize.
+ * @return True if initialization is successful, false otherwise.
+ */
+
 bool v1190::init(int tdcId){
     if(!checkModuleResponse()) return false;
 
@@ -29,6 +41,22 @@ bool v1190::init(int tdcId){
 }
 
 
+
+/**
+ * @brief Configures the V1190 module with specific settings for a given TDC.
+ *
+ * This function sets up the V1190 Time-to-Digital Converter (TDC) module by 
+ * configuring its control registers, enabling specific features, and setting 
+ * various operational parameters. It performs a board reset, reads the control 
+ * register status, enables the ETTT mode, sets the block transfer event number, 
+ * and configures the almost full level. It also sets trigger matching flags, 
+ * timing window parameters, edge detection, and resolution settings. The 
+ * function logs the setup process and returns a boolean indicating success or 
+ * failure.
+ *
+ * @param tdcId The ID of the TDC to configure.
+ * @return True if the setup is successful, false otherwise.
+ */
 
 bool v1190::setupV1190(int tdcId){
 
@@ -131,6 +159,15 @@ bool v1190::setupV1190(int tdcId){
 }
 
 
+/**
+ * @brief Checks if the V1190 module is properly responding.
+ *
+ * Checks if the V1190 module is properly responding by writing a known
+ * value to the dummy register and then reading it back. If the read value
+ * matches the written value, the module is considered responsive.
+ *
+ * @return true if module is responsive, false otherwise
+ */
 bool v1190::checkModuleResponse(){
 
     auto log = Logger::getLogger();
@@ -155,12 +192,30 @@ float v1190::getFirmwareRevision(){
     return (1.0*highcsr + 0.1*lowcsr);
 }
 
+/**
+ * @brief Check if the V1190 module is almost full.
+ *
+ * This function checks the status register of the V1190 module and returns
+ * true if the module is almost full, false otherwise.
+ *
+ * @return true if module is almost full, false otherwise
+ */
 bool v1190::almostFull(){
     unsigned short full = 0;
     full = V1190AlmostFull(handle, vmeBaseAddress);
     return (bool)full;
 }
 
+/**
+ * @brief Perform a block transfer read (BLT) from the V1190 module.
+ *
+ * This function reads data from the V1190 module using a block transfer read (BLT)
+ * and stores the data in a DataBank object.
+ *
+ * @param dataBank The DataBank object to store the read data in.
+ *
+ * @return The number of words read from the module.
+ */
 unsigned int v1190::BLTRead(DataBank& dataBank) {
 
     auto log = Logger::getLogger();
@@ -227,139 +282,14 @@ unsigned int v1190::BLTRead(DataBank& dataBank) {
 
 
 
-
-
-// bool v1190::read(void *pevent){
-// ////// ADDED NOW   
-//     unsigned int* buff = NULL;
-//     int BufferSize;
-//     int nb;
-
-//     // struct timespec sleeptime;
-//     // sleeptime.tv_sec = 0;
-//     // sleeptime.tv_nsec = 1000; // unit is nano seconds
-
-//     // getStatusReg();
-
-//     // for(int counter = 0; counter < 200; counter ++){
-//     // if(checkEventStatus()) break;
-//     // else{
-//     //     nanosleep(&sleeptime, NULL);
-//     // }
-//     // }
-//     // if(!checkEventStatus()) return false;
-//     // DWORD  data[1000000]; // just a very big buffer...
-//     // //DWORD  data[1000]; // just a very big buffer...
-//     // char   bname[5];
-//     // DWORD *pdata;
-
-//  ////// ADDED NOW   
-//     BufferSize = 1024 * 1024;
-// 	if ((buff = malloc(BufferSize)) == NULL) {
-// 		printf("Can't allocate memory buffer of %d KB\n", BufferSize / 1024);
-// 		goto exit_prog;
-// 	}
-
-
-
-//     ////////////////////////////////////////////Sve
-//     //read_BLT32////////////
-
-
-//     printf("v1190_DataReady: %d\n",v1190_DataReady(vme, vmeBaseAdress));
-//     printf("v1190_AlmostFull: %d\n",v1190_IsAlmostFull(vme, vmeBaseAdress));
-
-//     sprintf(bname,"TDC%X",tdcNum);
-
-//     // create bank for TDC data
-//     bk_create(pevent, bname, TID_DWORD, &pdata);
-
-//     sleeptime.tv_sec = 0;
-//     sleeptime.tv_nsec = 200000; // unit is nano seconds
-//     nanosleep(&sleeptime, NULL); 
-//     int entries = getEventSize();
-//     cm_msg(MINFO, "vmefrontend", "0x%08x events available at TDC", entries);
-
-//     ///////////////////////////////////////////////////////////////// 
-
-//     int n_words=0;
-
-//     if(entries>0){
-
-//         int n_events = v1190_EvtStored(vme, vmeBaseAdress);
-//         for (int i=0; i<n_events; i++){
-
-//             n_words+=v1190_GetWrdCntFromEvtFifo(vme, vmeBaseAdress);
-
-//         } 
-
-//         cm_msg(MINFO, "vmefrontend", "number of words in buffer %i total", n_words);
-
-//         int read_level = v1190_ReadAlmostFullLevel(vme, vmeBaseAdress);
-//         cm_msg(MINFO, "vmefrontend", "Number of words TDC: %i", read_level);
-
-
-//         ///////////////////////////////////////////////////////////////
-//         //
-
-//         //	v1190_BLTRead(vme, vmeBaseAdress, data, &n_words);// BLT Read Svetlana
-//         v1190_BLTRead(vme, vmeBaseAdress, data, n_words);
-//         //   v1190_DataRead(vme, vmeBaseAdress, data, (uint32_t)entries);
-//         //	 v1190_EventRead(vme, vmeBaseAdress, data, &entries);
-//         // v1190_EventReadWCFifo(vme, vmeBaseAdress, data, &entries);  // Read event with WC from FIFO  H.Shi
-//         std::chrono::time_point<std::chrono::high_resolution_clock> t_start = std::chrono::high_resolution_clock::now();
-
-//         //std ::cout<<entries<<"entries:"<<std::endl;
-//         cm_msg(MINFO, "vmefrontend", "0x%08x words read", entries);
-//         for(unsigned int i=0; i<n_words; i++){
-//         //std::cout << data[i] << std::endl;
-//         *pdata++ = data[i];   
-//         /*	std::stringstream sstream;
-//         sstream << std::hex << data[i];
-//         std::string result = sstream.str();
-//         file<<result<<std::endl;*/ //Sve debugging
-
-//         }
-//         //file<<"$$$$Nwords$$$"<<n_words<<std::endl;//Sve debugging
-//         std::chrono::time_point<std::chrono::high_resolution_clock> t_end = std::chrono::high_resolution_clock::now();
-
-
-//         std::chrono::duration<float> diff = t_end-t_start;
-
-
-//         cm_msg(MINFO, "vmefrontend","TDC read time_V1190: %f sec", diff.count() );    
-//     } 
-
-//     else {
-//         return false;
-//     }
- 
-//     bk_close(pevent,pdata);  
-//     //v1190_SoftReset(vme, vmeBaseAdress);
-//     v1190_SoftClear(vme, vmeBaseAdress);
-
-//     //cm_msg(MINFO, "vmefrontend", "0x%08x events at TDC after Reset+Clear", entries);
-//     // getPara(); // debug for the resolution setting
-
-//     getStatusReg();
-//     //entries = getEventSize();
-
-//     return true;
-// }
-
-// // void v1190::update(INT hDB, INT hkey, void *dump){
-// //     if(dump != NULL){
-
-// //         messenger *mess = (messenger *)dump;
-
-// //         //cm_msg(MINFO,"vmefrontend","Mess: 0x%x 0x%x 0x%x 0x%x",mess->vmeBaseAdress,(uint16_t)(mess->settings->width / 25),(uint16_t)(mess->settings->offset / 25),mess->settings->edge_trailing);//comment
-
-// //         v1190_WidthSet(mess->vme, mess->vmeBaseAdress, (uint16_t)(mess->settings->width / 25));
-// //         v1190_OffsetSet(mess->vme, mess->vmeBaseAdress, (uint16_t)(mess->settings->offset / 25));
-// //         v1190_SetEdgeDetection(mess->vme, mess->vmeBaseAdress, mess->settings->edge_leading, mess->settings->edge_trailing);
-// //     }
-// // }
-
+/**
+ * @brief Retrieve parameters from V1190 TDC.
+ *
+ * This function reads the settings from the V1190 TDC and prints them to the
+ * log. It reads the match window width, window offset, extra search window
+ * width, reject margin, trigger time subtraction, edge detection, and
+ * resolution settings.
+ */
 void v1190::getPara()
 {
     int ns = 25;
@@ -445,6 +375,11 @@ void v1190::getStatusReg()
 }
 
 
+    /**
+     * Enable all channels and start the V1190.
+     *
+     * @return true if successful
+     */
 bool v1190::start()
 {
 
@@ -456,6 +391,11 @@ bool v1190::start()
     return true;
 }
 
+    /**
+     * Disable all channels and stop the V1190.
+     *
+     * @return true if successful
+     */
 bool v1190::stop()
 {
     // int read;
