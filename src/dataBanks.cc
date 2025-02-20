@@ -79,6 +79,8 @@ const std::vector<Event>& DataBank::getEvents() const {
 
 Block::Block(uint32_t id) : blockID(id) { }
 
+Block::~Block() {}
+
 void Block::addDataBank(const DataBank& bank) {
     banks.push_back(bank);
 }

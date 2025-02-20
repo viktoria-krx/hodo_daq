@@ -27,5 +27,5 @@ find_package(spdlog REQUIRED)
 include_directories(${CAENVMELIB_PATH}/include)
 include_directories(${CAENPLULIB_PATH}/include)
 
-add_executable(hodo_daq frontend.cc ${sources})
+add_executable(hodo_daq daq_controller.cc ${sources})
 target_link_libraries(hodo_daq /usr/lib/libCAENVME.so /usr/lib/libCAEN_PLU.so spdlog::spdlog)

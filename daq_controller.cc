@@ -3,6 +3,7 @@
 #include "dataBanks.hh"
 #include "vmeInterface.hh"
 #include "logger.hh"
+#include "tcp_server.hh"
 
 #include <iostream>
 #include <vector>
@@ -35,7 +36,7 @@ static const unsigned int FPGAserialNumber = 28;
 VMEInterface vme(BridgeBaseAddress);
 
 // Config file for run number: 
-const std::string runconfig = "../config/frontend.conf";
+const std::string runconfig = "../config/daq_config.conf";
 std::map<std::string, std::string> config;
 
 // Thread safe readout 
@@ -75,8 +76,8 @@ std::map<std::string, std::string> loadConfig() {
     std::string line;
     
     if (!file.is_open()) {
-      log->error("Could not open config file!");
-      return config;
+        log->error("Could not open config file!");
+        return config;
     }
 
     while (std::getline(file, line)) {
@@ -142,19 +143,19 @@ char* getRunFilename(int runNumber, const std::string& path, const std::string& 
  */
 
 void startReadoutThread(v1190& tdc, std::string bankName) {
-  readoutThreads.emplace_back([&tdc, bankName] () {
-    while(!stopReadout) {
-      DataBank dataBank(bankName.c_str());
-      unsigned int wordsRead = tdc.BLTRead(dataBank);
+    readoutThreads.emplace_back([&tdc, bankName] () {
+        while(!stopReadout) {
+            DataBank dataBank(bankName.c_str());
+            unsigned int wordsRead = tdc.BLTRead(dataBank);
 
-      if (wordsRead > 0) {
-        std::lock_guard<std::mutex> lock(bankQueueMutex);
-        bankQueue.push(std::move(dataBank));
-        dataAvailable.notify_one();
-      }
-      std::this_thread::sleep_for(std::chrono::milliseconds(10));
-    }
-  });
+            if (wordsRead > 0) {
+                std::lock_guard<std::mutex> lock(bankQueueMutex);
+                bankQueue.push(std::move(dataBank));
+                dataAvailable.notify_one();
+            }
+            std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        }
+    });
 }
 
 /**
@@ -168,15 +169,15 @@ void startReadoutThread(v1190& tdc, std::string bankName) {
  */
 void writeBinFile(const std::vector<uint8_t>& data) {
 
-  int runNumber = std::stoi(config["run_number"]);
-  // Get filename as char*
-  char* filename = getRunFilename(runNumber, config["data_path"], config["file_prefix"]);
-  // log->info("Starting run {0:d}, saving data to: {1}", runNumber, filename);
+    int runNumber = std::stoi(config["run_number"]);
+    // Get filename as char*
+    char* filename = getRunFilename(runNumber, config["data_path"], config["file_prefix"]);
+    // log->info("Starting run {0:d}, saving data to: {1}", runNumber, filename);
 
-  FILE* file = fopen(filename, "ab");
-  fwrite(data.data(), 1, data.size(), file);
-  fclose(file);
-  free(filename);
+    FILE* file = fopen(filename, "ab");
+    fwrite(data.data(), 1, data.size(), file);
+    fclose(file);
+    free(filename);
 }
 
 /**
@@ -190,16 +191,16 @@ void writeBinFile(const std::vector<uint8_t>& data) {
  *       using the `stop_run` function.
  */
 void fileWriterThread() {
-  while(!stopReadout) {
-      std::unique_lock<std::mutex> lock(blockQueueMutex);
-      blockQueueCond.wait(lock, [] { return !blockQueue.empty() || stopReadout; });
+    while(!stopReadout) {
+        std::unique_lock<std::mutex> lock(blockQueueMutex);
+        blockQueueCond.wait(lock, [] { return !blockQueue.empty() || stopReadout; });
 
-      std::vector<uint8_t> binaryData = std::move(blockQueue.front());
-      blockQueue.pop();
-      lock.unlock();
+        std::vector<uint8_t> binaryData = std::move(blockQueue.front());
+        blockQueue.pop();
+        lock.unlock();
 
-      writeBinFile(binaryData);  // Function to write data to file
-  }
+        writeBinFile(binaryData);  // Function to write data to file
+    }
 }
 
 
@@ -217,49 +218,49 @@ void fileWriterThread() {
  * `stopReadout` to true.
  */
 
-void processEvents() {
-  while(!stopReadout) {
-    std::unique_lock<std::mutex> lock(bankQueueMutex);
-    dataAvailable.wait(lock, [] {return !bankQueue.empty() || stopReadout; });
+  void processEvents() {
+    while(!stopReadout) {
+      std::unique_lock<std::mutex> lock(bankQueueMutex);
+      dataAvailable.wait(lock, [] {return !bankQueue.empty() || stopReadout; });
 
-    if (stopReadout) break;
+      if (stopReadout) break;
 
-    Block block(blockID);
+      Block block(blockID);
 
-    while (!bankQueue.empty()) {
-      DataBank dataBank = std::move(bankQueue.front());
-      bankQueue.pop();
-      block.addDataBank(dataBank);
+      while (!bankQueue.empty()) {
+          DataBank dataBank = std::move(bankQueue.front());
+          bankQueue.pop();
+          block.addDataBank(dataBank);
 
-    }
+      }
 
       lock.unlock();
 
-    DataBank GATE("GATE");
-    fpgas[0]->readFIFO(GATE, 0x0000);   // This function will only be properly written once I have a working Gate Register on the V2495
-    block.addDataBank(GATE);
+      DataBank GATE("GATE");
+      fpgas[0]->readFIFO(GATE, 0x0000);   // This function will only be properly written once I have a working Gate Register on the V2495
+      block.addDataBank(GATE);
 
-    DataBank CUSP("CUSP");        // Adding the current ms timestamp to the CUSP bank, since this won't change anything
-    auto now = std::chrono::system_clock::now();
-    auto now_ms = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()).count();
-    std::ifstream cuspFile("/path/to/cusp.txt");
-    if (cuspFile) {
-        int cuspValue;
-        cuspFile >> cuspValue;
-        Event eventCUSPrun;
-        eventCUSPrun.data.push_back(cuspValue);
-        eventCUSPrun.timestamp = now_ms;
-        CUSP.addEvent(eventCUSPrun);
-    }
+      DataBank CUSP("CUSP");        // Adding the current ms timestamp to the CUSP bank, since this won't change anything
+      auto now = std::chrono::system_clock::now();
+      auto now_ms = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()).count();
+      std::ifstream cuspFile("/path/to/cusp.txt");
+      if (cuspFile) {
+          int cuspValue;
+          cuspFile >> cuspValue;
+          Event eventCUSPrun;
+          eventCUSPrun.data.push_back(cuspValue);
+          eventCUSPrun.timestamp = now_ms;
+          CUSP.addEvent(eventCUSPrun);
+      }
 
-    std::vector<uint8_t> binaryData = block.serialize();
-    {
-      std::lock_guard<std::mutex> blockLock(blockQueueMutex);
-      blockQueue.push(std::move(binaryData));
-    }
-    blockQueueCond.notify_one();
+      std::vector<uint8_t> binaryData = block.serialize();
+      {
+          std::lock_guard<std::mutex> blockLock(blockQueueMutex);
+          blockQueue.push(std::move(binaryData));
+      }
+      blockQueueCond.notify_one();
 
-    blockID++;
+      blockID++;
 
   }
 }
@@ -277,30 +278,30 @@ void processEvents() {
 
 void polling() {
 
-  bool isfull = false;
-  std::vector<bool> tdcReading(NUM_TDCS, false);
+    bool isfull = false;
+    std::vector<bool> tdcReading(NUM_TDCS, false);
 
-  while (!stopReadout) {
+    while (!stopReadout) {
 
-    for (auto tdc : tdcs) {
-      isfull |= tdc->almostFull();
-    }
-
-    if (isfull) {
-
-      for (int i = 0; i < NUM_TDCS; i++){
-        if (!tdcReading[i]) {
-          startReadoutThread(*tdcs[i], "TDC"+std::to_string(i));
-          tdcReading[i] = true;
+        for (auto tdc : tdcs) {
+            isfull |= tdc->almostFull();
         }
-        
-      }
+
+        if (isfull) {
+
+            for (int i = 0; i < NUM_TDCS; i++){
+                if (!tdcReading[i]) {
+                    startReadoutThread(*tdcs[i], "TDC"+std::to_string(i));
+                    tdcReading[i] = true;
+                }
+              
+            }
+
+        }
+
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));  // Small delay to avoid overloading CPU
 
     }
-
-    std::this_thread::sleep_for(std::chrono::milliseconds(10));  // Small delay to avoid overloading CPU
-
-  }
 }
 
 
@@ -322,7 +323,8 @@ bool start_run() {
 
     log->info("Starting data acquisition...");
     // std::cout << "Starting data acquisition..." << std::endl;
-
+    
+    std::map<std::string, std::string> config = loadConfig();
     int runNumber = std::stoi(config["run_number"]) + 1;
     config["run_number"] = std::to_string(runNumber);
     saveConfig(config);  // Save updated run number
@@ -388,9 +390,9 @@ void stop_run() {
     }
 
     for (auto& thread : readoutThreads) {
-      if (thread.joinable()) {
-        thread.join();
-      }
+        if (thread.joinable()) {
+            thread.join();
+        }
     }
     readoutThreads.clear();
 
@@ -398,14 +400,14 @@ void stop_run() {
 
     // std::cout << "Forcing final readout of TDCs" << std::endl;
     for (int i = 0; i < NUM_TDCS; i++) {
-      DataBank lastBank(("TDC" + std::to_string(i)).c_str());
-      unsigned int wordsRead = tdcs[i]->BLTRead(lastBank);
+        DataBank lastBank(("TDC" + std::to_string(i)).c_str());
+        unsigned int wordsRead = tdcs[i]->BLTRead(lastBank);
 
-      if (wordsRead > 0) {
-        std::lock_guard<std::mutex> lock(bankQueueMutex);
-        bankQueue.push(std::move(lastBank));
-        dataAvailable.notify_one();
-      }
+        if (wordsRead > 0) {
+            std::lock_guard<std::mutex> lock(bankQueueMutex);
+            bankQueue.push(std::move(lastBank));
+            dataAvailable.notify_one();
+        }
     }
 
 if (!bankQueue.empty()) {
@@ -474,7 +476,7 @@ if (!bankQueue.empty()) {
  * @return true on success, false otherwise.
  */
 bool pause_run() {
-  return vme.startVeto();
+    return vme.startVeto();
 }
 
 /**
@@ -486,12 +488,12 @@ bool pause_run() {
  * @return true on success, false otherwise.
  */
 bool resume_run() {
-  return vme.stopVeto();
+    return vme.stopVeto();
 }
 
 
 /**
- * @brief Cleans up resources and exits the frontend.
+ * @brief Cleans up resources and exits the DAQ.
  *
  * This function deletes all allocated TDC and FPGA objects, and closes the VME interface.
  * It ensures that all dynamically allocated resources are properly released before exiting.
@@ -499,21 +501,79 @@ bool resume_run() {
  * @return 0 indicating successful cleanup and exit.
  */
 
-int frontend_exit() {
-  for(int i=0; i<NUM_TDCS; i++){
-    delete tdcs[i];
-  }
-  for(int i=0; i<NUM_FPGAS; i++){
-    delete fpgas[i];
-  }
-  vme.close();
-  return 0;
+int daq_exit() {
+
+    auto log = Logger::getLogger();
+    log->info("Deleting daq_control");
+
+    for(int i=0; i<NUM_TDCS; i++){
+        delete tdcs[i];
+    }
+    for(int i=0; i<NUM_FPGAS; i++){
+        delete fpgas[i];  
+    }
+    vme.close();
+    exit(0);
+    return 0;
 }
 
+bool hardware_inits() {
+
+    auto log = Logger::getLogger();
+    bool success = true;
+
+    vme.init();
+
+    int handle = vme.getHandle();
+    vme.startVeto();
+    // Connect to all TDCs:
+
+    for(int i=0; i<NUM_TDCS; i++){
+        tdcs[i] = new v1190(TDCbaseAddresses[i], handle);
+    }
+
+    for(int i=0; i<NUM_TDCS; i++){
+        // V1190Status[i] = tdcs[i]->checkModuleResponse(); // this is already called in the init function
+        V1190Status[i] &= tdcs[i]->init(i);
+
+        if (V1190Status[i]) {
+            log->info("V1190 module {0:d} is online", i);
+        } else {
+            log->warn("V1190 module {0:d} is NOT online!", i);
+            success = false;
+        }
+    }
+
+    // Connect to FPGA:
+    // ConnType 4 : CAEN_PLU_CONNECT_VME_V4718_ETH
+    // ConnType 5 : CAEN_PLU_CONNECT_VME_V4718_USB
+    // ConnType 6 : CAEN_PLU_CONNECT_VME_A4818
+
+    for(int i=0; i<NUM_FPGAS; i++){
+        fpgas[i] = new v2495(4, (char*)FPGAipAddress, FPGAserialNumber, (char*)FPGAbaseAddress, handle);
+    }
+
+    for(int i=0; i<NUM_FPGAS; i++){
+        V2495Status[i] = fpgas[i]->init(i); // Opens connection
+
+        if (V2495Status[i]) {
+            log->info("V2495 module {0:d} is online", i);
+        } else {
+          log->info("V2495 module {0:d} is NOT online!", i);
+          success = false;
+        }
+
+
+    }
+
+    return success;
+}
+
+
 /**
- * @brief The main entry point of the frontend application.
+ * @brief The main entry point of the DAQ application.
  *
- * This function initializes the frontend, loads the configuration file,
+ * This function initializes the DAQ, loads the configuration file,
  * connects to the VME interface, and initializes all connected TDCs and
  * FPGAs. 
  *
@@ -521,53 +581,29 @@ int frontend_exit() {
  */
 int main() {
 
-  Logger::init();
-  auto log = Logger::getLogger();
+    Logger::init();
+    auto log = Logger::getLogger();
 
-  log->info("Hiya!");
-  log->debug("Oy!");
+    log->info("Hiya!");
+    log->debug("Oy!");
 
-  std::map<std::string, std::string> config = loadConfig();
+    TCPServer server(12345);  // Choose a port
+    server.start();
 
-  int runNumber = std::stoi(config["run_number"]);
-  log->info("Current run number: {0:d}", runNumber);
 
-  vme.init();
-
-  int handle = vme.getHandle();
-  vme.startVeto();
-  // Connect to all TDCs:
-
-  for(int i=0; i<NUM_TDCS; i++){
-    tdcs[i] = new v1190(TDCbaseAddresses[i], handle);
-  }
-
-  for(int i=0; i<NUM_TDCS; i++){
-    // V1190Status[i] = tdcs[i]->checkModuleResponse(); // this is already called in the init function
-    V1190Status[i] &= tdcs[i]->init(i);
-
-    if (V1190Status[i]) {
-      log->info("V1190 module {0:d} is online", i);
-      // printf("\nV1190 module %d is online\n", i);
-    } else {
-      log->warn("V1190 module {0:d} is NOT online!", i);
-      // printf("\nV1190 module %d is NOT online!\n", i);
+    while (!hardware_inits()) {
+        log->warn("Hardware initialization failed. Retrying...");
+        std::this_thread::sleep_for(std::chrono::seconds(2)); 
     }
-  }
 
-  // Connect to FPGA:
-  // ConnType 4 : CAEN_PLU_CONNECT_VME_V4718_ETH
-  // ConnType 5 : CAEN_PLU_CONNECT_VME_V4718_USB
-  // ConnType 6 : CAEN_PLU_CONNECT_VME_A4818
+    std::map<std::string, std::string> config = loadConfig();
 
-  for(int i=0; i<NUM_FPGAS; i++){
-    fpgas[i] = new v2495(4, (char*)FPGAipAddress, FPGAserialNumber, (char*)FPGAbaseAddress, handle);
-  }
+    int runNumber = std::stoi(config["run_number"]);
+    log->info("Current run number: {0:d}", runNumber);
 
-  for(int i=0; i<NUM_FPGAS; i++){
-    V2495Status[i] = fpgas[i]->init(i); // Opens connection
-  }
 
-  
-  return 0;
+
+
+    
+    return 0;
 }
