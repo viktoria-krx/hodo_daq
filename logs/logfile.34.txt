@@ -1,0 +1,77 @@
+[2025-03-10 16:45:54] [info] Hiya!
+[2025-03-10 16:45:54] [info] Starting TCP server on port 12345
+[2025-03-10 16:45:54] [info] TCP server listening on port 12345
+[2025-03-10 16:45:54] [error] VME Write failed: -1 at offset 0x9
+[2025-03-10 16:45:54] [error] VME Write failed: -1 at offset 0x10
+[2025-03-10 16:45:54] [error] VME Write failed: -1 at offset 0x14
+[2025-03-10 16:45:54] [error] VME Write failed: -1 at offset 0x11
+[2025-03-10 16:45:54] [warning] V1190 module 0 is NOT online!
+[2025-03-10 16:45:54] [warning] V1190 module 1 is NOT online!
+[2025-03-10 16:45:54] [warning] V1190 module 2 is NOT online!
+[2025-03-10 16:45:54] [warning] V1190 module 3 is NOT online!
+[2025-03-10 16:45:54] [warning] Hardware initialization failed. Retrying...
+[2025-03-10 16:45:56] [error] Can't open VME controller
+[2025-03-10 16:45:56] [error] VME Write failed: -1 at offset 0x11
+[2025-03-10 16:45:56] [warning] V1190 module 0 is NOT online!
+[2025-03-10 16:45:56] [warning] V1190 module 1 is NOT online!
+[2025-03-10 16:45:56] [warning] V1190 module 2 is NOT online!
+[2025-03-10 16:45:56] [warning] V1190 module 3 is NOT online!
+[2025-03-10 16:45:56] [warning] Hardware initialization failed. Retrying...
+[2025-03-10 16:45:58] [error] Can't open VME controller
+[2025-03-10 16:45:58] [error] VME Write failed: -1 at offset 0x11
+[2025-03-10 16:45:58] [warning] V1190 module 0 is NOT online!
+[2025-03-10 16:45:58] [warning] V1190 module 1 is NOT online!
+[2025-03-10 16:45:58] [warning] V1190 module 2 is NOT online!
+[2025-03-10 16:45:58] [warning] V1190 module 3 is NOT online!
+[2025-03-10 16:45:58] [warning] Hardware initialization failed. Retrying...
+[2025-03-10 16:46:00] [error] Can't open VME controller
+[2025-03-10 16:46:00] [error] VME Write failed: -1 at offset 0x11
+[2025-03-10 16:46:00] [warning] V1190 module 0 is NOT online!
+[2025-03-10 16:46:00] [warning] V1190 module 1 is NOT online!
+[2025-03-10 16:46:00] [warning] V1190 module 2 is NOT online!
+[2025-03-10 16:46:00] [warning] V1190 module 3 is NOT online!
+[2025-03-10 16:46:00] [warning] Hardware initialization failed. Retrying...
+[2025-03-10 16:46:02] [error] Can't open VME controller
+[2025-03-10 16:46:02] [error] VME Write failed: -1 at offset 0x11
+[2025-03-10 16:46:02] [warning] V1190 module 0 is NOT online!
+[2025-03-10 16:46:02] [warning] V1190 module 1 is NOT online!
+[2025-03-10 16:46:02] [warning] V1190 module 2 is NOT online!
+[2025-03-10 16:46:02] [warning] V1190 module 3 is NOT online!
+[2025-03-10 16:46:02] [warning] Hardware initialization failed. Retrying...
+[2025-03-10 16:46:04] [error] Can't open VME controller
+[2025-03-10 16:46:04] [error] VME Write failed: -1 at offset 0x11
+[2025-03-10 16:46:04] [warning] V1190 module 0 is NOT online!
+[2025-03-10 16:46:04] [warning] V1190 module 1 is NOT online!
+[2025-03-10 16:46:04] [warning] V1190 module 2 is NOT online!
+[2025-03-10 16:46:04] [warning] V1190 module 3 is NOT online!
+[2025-03-10 16:46:04] [warning] Hardware initialization failed. Retrying...
+[2025-03-10 16:46:06] [error] Can't open VME controller
+[2025-03-10 16:46:06] [error] VME Write failed: -1 at offset 0x11
+[2025-03-10 16:46:06] [warning] V1190 module 0 is NOT online!
+[2025-03-10 16:46:06] [warning] V1190 module 1 is NOT online!
+[2025-03-10 16:46:06] [warning] V1190 module 2 is NOT online!
+[2025-03-10 16:46:06] [warning] V1190 module 3 is NOT online!
+[2025-03-10 16:46:06] [warning] Hardware initialization failed. Retrying...
+[2025-03-10 16:46:08] [error] Can't open VME controller
+[2025-03-10 16:46:08] [error] VME Write failed: -1 at offset 0x11
+[2025-03-10 16:46:08] [warning] V1190 module 0 is NOT online!
+[2025-03-10 16:46:08] [warning] V1190 module 1 is NOT online!
+[2025-03-10 16:46:08] [warning] V1190 module 2 is NOT online!
+[2025-03-10 16:46:08] [warning] V1190 module 3 is NOT online!
+[2025-03-10 16:46:08] [warning] Hardware initialization failed. Retrying...
+[2025-03-10 16:46:10] [error] Can't open VME controller
+[2025-03-10 16:46:10] [error] VME Write failed: -1 at offset 0x11
+[2025-03-10 16:46:10] [warning] V1190 module 0 is NOT online!
+[2025-03-10 16:46:10] [warning] V1190 module 1 is NOT online!
+[2025-03-10 16:46:10] [warning] V1190 module 2 is NOT online!
+[2025-03-10 16:46:10] [warning] V1190 module 3 is NOT online!
+[2025-03-10 16:46:10] [warning] Hardware initialization failed. Retrying...
+[2025-03-10 16:46:12] [error] Can't open VME controller
+[2025-03-10 16:46:12] [error] VME Write failed: -1 at offset 0x11
+[2025-03-10 16:46:12] [warning] V1190 module 0 is NOT online!
+[2025-03-10 16:46:12] [warning] V1190 module 1 is NOT online!
+[2025-03-10 16:46:12] [warning] V1190 module 2 is NOT online!
+[2025-03-10 16:46:12] [warning] V1190 module 3 is NOT online!
+[2025-03-10 16:46:12] [warning] Hardware initialization failed. Retrying...
+[2025-03-10 16:46:13] [info] Received command: !
+[2025-03-10 16:46:13] [info] Deleting daq_control

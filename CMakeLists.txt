@@ -11,7 +11,7 @@ file(GLOB headers ${PROJECT_SOURCE_DIR}/include/*.hh ${PROJECT_SOURCE_DIR}/inclu
 set(CMAKE_C_COMPILER "/usr/bin/gcc")
 set(CMAKE_CXX_COMPILER "/usr/bin/g++")
 
-set(CAENVMELIB_PATH "/home/viktoria/software/CAEN/CAENVMELib-v3.4.3/")
+set(CAENVMELIB_PATH "/home/viktoria/software/CAEN/CAENVMELib-v4.0.2/")
 set(CAENPLULIB_PATH "/home/viktoria/software/CAEN/CAEN_PLU-1.2")
 
 set(CMAKE_PREFIX_PATH ${CMAKE_PREFIX_PATH} /home/viktoria/Documents/Hodoscope/blt_frontend/spdlog/build/)

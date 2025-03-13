@@ -1,0 +1,17 @@
+[2025-02-25 15:39:49] [info] Hiya!
+[2025-02-25 15:39:49] [info] Starting TCP server on port 12345
+[2025-02-25 15:39:49] [info] TCP server listening on port 12345
+[2025-02-25 15:39:49] [error] Can't open VME controller
+[2025-02-25 15:39:49] [error] VME Write failed: -3 at offset 0x11
+[2025-02-25 15:39:49] [warning] V1190 module 0 is NOT online!
+[2025-02-25 15:39:49] [warning] V1190 module 1 is NOT online!
+[2025-02-25 15:39:49] [warning] V1190 module 2 is NOT online!
+[2025-02-25 15:39:49] [warning] V1190 module 3 is NOT online!
+[2025-02-25 15:39:49] [info] Trying to connect to the V2495 module
+[2025-02-25 15:39:51] [info] Received command: start
+[2025-02-25 15:39:51] [info] Starting data acquisition...
+[2025-02-25 15:39:51] [info] Starting run 20
+[2025-02-25 15:39:51] [error] VME Write failed: -3 at offset 0x11
+[2025-02-25 15:39:51] [error] VME Write failed: -3 at offset 0x12
+[2025-02-25 15:39:51] [error] VME Write failed: -3 at offset 0x12
+[2025-02-25 15:39:51] [info] Data acquisition started!

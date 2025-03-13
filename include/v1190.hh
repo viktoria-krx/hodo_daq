@@ -2,7 +2,7 @@
 #define __V1190_CC__ 
 
 #include "v1190.h"
-// #include "vmeInterface.hh"
+#include "vmeInterface.hh"
 #include "dataBanks.hh"
 #include <CAENVMElib.h>
 #include "v1190.h"

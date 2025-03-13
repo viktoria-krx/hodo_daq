@@ -18,7 +18,7 @@
 #include <iomanip>
 #include <map>
 
-#define NUM_TDCS 4
+#define NUM_TDCS 1 //4
 #define NUM_FPGAS 1
 
 v1190 *tdcs[NUM_TDCS];
@@ -27,13 +27,15 @@ v2495 *fpgas[NUM_FPGAS];
 int V2495Status[NUM_FPGAS];
 
 // Define all base addresses:
-static const unsigned int BridgeBaseAddress = 0x90000000;
-static const unsigned int TDCbaseAddresses[] = {0x90900000, 0x90910000, 0x90920000, 0x90930000};
+static const unsigned int vmeBaseAddress = 0x32100000;
+char* vmeIPAddress = "192.168.1.254\0";
+static const unsigned int TDCbaseAddresses[] = {0x90900000}; //, 0x90910000, 0x90920000, 0x90930000};
 const char* FPGAbaseAddress = "32100000";
-const char* FPGAipAddress = "192.168.1.254";
-static const unsigned int FPGAserialNumber = 28;
+// static const unsigned int FPGAserialNumber = 28;
 
-VMEInterface vme(BridgeBaseAddress);
+static const int vmeConnType = cvETH_V4718;
+int handle = -1;
+VMEInterface vme(vmeConnType, vmeIPAddress);
 
 // Config file for run number: 
 const std::string runconfig = "../config/daq_config.conf";
@@ -55,7 +57,8 @@ bool stopWriter = false;
 
 uint32_t blockID = 0; // ID of each BLT block
 
-
+bool all_init = false;
+bool is_running = false;
 
 /**
  * @brief Load configuration from a file.
@@ -323,6 +326,8 @@ bool start_run() {
 
     log->info("Starting data acquisition...");
     // std::cout << "Starting data acquisition..." << std::endl;
+
+    is_running = true;
     
     std::map<std::string, std::string> config = loadConfig();
     int runNumber = std::stoi(config["run_number"]) + 1;
@@ -371,100 +376,108 @@ bool start_run() {
  */
 
 void stop_run() {
-
     auto log = Logger::getLogger();
 
-    log->info("Stopping data acquisition...");
-    // std::cout << "Stopping data acquisition..." << std::endl;
+    if (is_running) {
+        
+        log->info("Stopping data acquisition...");
+        // std::cout << "Stopping data acquisition..." << std::endl;
 
-    for (auto tdc : tdcs) {
-        tdc->stop(); 
-    }
-
-    stopReadout = true;
-    dataAvailable.notify_all();
-    blockQueueCond.notify_all();
-
-    if (pollingThread.joinable()) {
-        pollingThread.join();  // Wait for polling thread to finish
-    }
-
-    for (auto& thread : readoutThreads) {
-        if (thread.joinable()) {
-            thread.join();
+        for (auto tdc : tdcs) {
+            tdc->stop(); 
         }
-    }
-    readoutThreads.clear();
 
-    log->debug("Forcing final readout of TDCs");
+        stopReadout = true;
+        dataAvailable.notify_all();
+        blockQueueCond.notify_all();
 
-    // std::cout << "Forcing final readout of TDCs" << std::endl;
-    for (int i = 0; i < NUM_TDCS; i++) {
-        DataBank lastBank(("TDC" + std::to_string(i)).c_str());
-        unsigned int wordsRead = tdcs[i]->BLTRead(lastBank);
-
-        if (wordsRead > 0) {
-            std::lock_guard<std::mutex> lock(bankQueueMutex);
-            bankQueue.push(std::move(lastBank));
-            dataAvailable.notify_one();
+        if (pollingThread.joinable()) {
+            pollingThread.join();  // Wait for polling thread to finish
         }
-    }
 
-if (!bankQueue.empty()) {
+        for (auto& thread : readoutThreads) {
+            if (thread.joinable()) {
+                thread.join();
+            }
+        }
+        readoutThreads.clear();
 
-        log->debug("Flushing remaining data...");
+        log->debug("Forcing final readout of TDCs");
 
-        // std::cout << "Flushing remaining data..." << std::endl;
+        // std::cout << "Forcing final readout of TDCs" << std::endl;
+        for (int i = 0; i < NUM_TDCS; i++) {
+            DataBank lastBank(("TDC" + std::to_string(i)).c_str());
+            unsigned int wordsRead = tdcs[i]->BLTRead(lastBank);
 
-        Block finalBlock(blockID);
+            if (wordsRead > 0) {
+                std::lock_guard<std::mutex> lock(bankQueueMutex);
+                bankQueue.push(std::move(lastBank));
+                dataAvailable.notify_one();
+            }
+        }
 
-        std::unique_lock<std::mutex> lock(bankQueueMutex);
-        while (!bankQueue.empty()) {
-            DataBank dataBank = std::move(bankQueue.front());
-            bankQueue.pop();
+        if (!bankQueue.empty()) {
+
+            log->debug("Flushing remaining data...");
+
+            // std::cout << "Flushing remaining data..." << std::endl;
+
+            Block finalBlock(blockID);
+
+            std::unique_lock<std::mutex> lock(bankQueueMutex);
+            while (!bankQueue.empty()) {
+                DataBank dataBank = std::move(bankQueue.front());
+                bankQueue.pop();
+                lock.unlock();
+
+                finalBlock.addDataBank(dataBank);
+                lock.lock();
+            }
             lock.unlock();
 
-            finalBlock.addDataBank(dataBank);
-            lock.lock();
+            // Also add the last GATE and CUSP banks
+            DataBank GATE("GATE");
+            fpgas[0]->readFIFO(GATE, 0x0000);  
+            finalBlock.addDataBank(GATE);
+
+            DataBank CUSP("CUSP");        
+            auto now = std::chrono::system_clock::now();
+            auto now_ms = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()).count();
+            std::ifstream cuspFile("/path/to/cusp.txt");
+            if (cuspFile) {
+                int cuspValue;
+                cuspFile >> cuspValue;
+                Event eventCUSPrun;
+                eventCUSPrun.data.push_back(cuspValue);
+                eventCUSPrun.timestamp = now_ms;
+                CUSP.addEvent(eventCUSPrun);
+            }
+            finalBlock.addDataBank(CUSP);
+
+            // Serialize and push to file writer queue
+            std::vector<uint8_t> binaryData = finalBlock.serialize();
+            {
+                std::lock_guard<std::mutex> blockLock(blockQueueMutex);
+                blockQueue.push(std::move(binaryData));
+            }
+            blockQueueCond.notify_one();
+
+            blockID++; // Increment block ID
         }
-        lock.unlock();
 
-        // Also add the last GATE and CUSP banks
-        DataBank GATE("GATE");
-        fpgas[0]->readFIFO(GATE, 0x0000);  
-        finalBlock.addDataBank(GATE);
+        stopWriter = true;
+        blockQueueCond.notify_all();
+        fileWriterThread();
 
-        DataBank CUSP("CUSP");        
-        auto now = std::chrono::system_clock::now();
-        auto now_ms = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()).count();
-        std::ifstream cuspFile("/path/to/cusp.txt");
-        if (cuspFile) {
-            int cuspValue;
-            cuspFile >> cuspValue;
-            Event eventCUSPrun;
-            eventCUSPrun.data.push_back(cuspValue);
-            eventCUSPrun.timestamp = now_ms;
-            CUSP.addEvent(eventCUSPrun);
-        }
-        finalBlock.addDataBank(CUSP);
+        // std::cout << "Data acquisition stopped!" << std::endl;
+        log->info("Data acquisition stopped");
 
-        // Serialize and push to file writer queue
-        std::vector<uint8_t> binaryData = finalBlock.serialize();
-        {
-            std::lock_guard<std::mutex> blockLock(blockQueueMutex);
-            blockQueue.push(std::move(binaryData));
-        }
-        blockQueueCond.notify_one();
+        is_running = false;
 
-        blockID++; // Increment block ID
+    } else {
+        log->error("Nothing is running, so it can't be stopped.");
     }
 
-    stopWriter = true;
-    blockQueueCond.notify_all();
-    fileWriterThread();
-
-    // std::cout << "Data acquisition stopped!" << std::endl;
-    log->info("Data acquisition stopped");
 }
 
 /**
@@ -522,12 +535,15 @@ bool hardware_inits() {
     auto log = Logger::getLogger();
     bool success = true;
 
-    vme.init();
+    if (handle == -1) {
+        vme.init();
+        handle = vme.getHandle();
+        vme.startVeto();
 
-    int handle = vme.getHandle();
-    vme.startVeto();
+    }
+
+
     // Connect to all TDCs:
-
     for(int i=0; i<NUM_TDCS; i++){
         tdcs[i] = new v1190(TDCbaseAddresses[i], handle);
     }
@@ -549,22 +565,22 @@ bool hardware_inits() {
     // ConnType 5 : CAEN_PLU_CONNECT_VME_V4718_USB
     // ConnType 6 : CAEN_PLU_CONNECT_VME_A4818
 
-    for(int i=0; i<NUM_FPGAS; i++){
-        fpgas[i] = new v2495(4, (char*)FPGAipAddress, FPGAserialNumber, (char*)FPGAbaseAddress, handle);
-    }
+    // for(int i=0; i<NUM_FPGAS; i++){
+    //     fpgas[i] = new v2495(4, (char*)FPGAipAddress, FPGAserialNumber, (char*)FPGAbaseAddress, handle);
+    // }
 
-    for(int i=0; i<NUM_FPGAS; i++){
-        V2495Status[i] = fpgas[i]->init(i); // Opens connection
+    // for(int i=0; i<NUM_FPGAS; i++){
+    //     V2495Status[i] = fpgas[i]->init(i); // Opens connection
 
-        if (V2495Status[i]) {
-            log->info("V2495 module {0:d} is online", i);
-        } else {
-          log->info("V2495 module {0:d} is NOT online!", i);
-          success = false;
-        }
+    //     if (V2495Status[i]) {
+    //         log->info("V2495 module {0:d} is online", i);
+    //     } else {
+    //       log->info("V2495 module {0:d} is NOT online!", i);
+    //       success = false;
+    //     }
 
 
-    }
+    // }
 
     return success;
 }
@@ -593,15 +609,15 @@ int main() {
 
     while (!hardware_inits()) {
         log->warn("Hardware initialization failed. Retrying...");
-        std::this_thread::sleep_for(std::chrono::seconds(2)); 
+        std::this_thread::sleep_for(std::chrono::seconds(5)); 
     }
+
+    all_init = true;
 
     std::map<std::string, std::string> config = loadConfig();
 
     int runNumber = std::stoi(config["run_number"]);
     log->info("Current run number: {0:d}", runNumber);
-
-
 
 
     

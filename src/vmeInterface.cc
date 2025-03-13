@@ -5,7 +5,13 @@
 
 #define Sleep(x) usleep((x)*1000)
 
-VMEInterface::VMEInterface(uint32_t vmeBaseAddress) : vmeBaseAddress(vmeBaseAddress), handle(-1) {}
+// VMEInterface::VMEInterface(uint32_t vmeBaseAddress) : vmeBaseAddress(vmeBaseAddress), handle(-1) {}
+
+VMEInterface::VMEInterface(int ConnType, char* vmeIPAddress) 
+    : ConnType(ConnType), vmeIPAddress(vmeIPAddress) {
+
+}
+
 
 VMEInterface::~VMEInterface() {
     close();
@@ -25,19 +31,47 @@ bool VMEInterface::init() {
 
     auto log = Logger::getLogger();
 
-    char ip[24];
-    uint32_t link = 0;
+    // char ip[24];
+    // uint32_t link = 0;
     CVBoardTypes BType = cvETH_V4718;
     // call VME Init
-    void* arg = BType == cvETH_V4718 ? (void*)ip : (void*)&link;
-    if (CAENVME_Init2(BType, arg, 0, &handle) != cvSuccess) {
+    // void* arg = BType == cvETH_V4718_LOCAL ? (void*)vmeIPAddress : (void*)&link;
+    // CAENVME_Init2(BType, vmeIPAddress, 0, &handle);
+    if (CAENVME_Init2(BType, vmeIPAddress, 0, &handle) != cvSuccess) {
         // printf("Can't open VME controller\n");
 
         log->error("Can't open VME controller");
         return false;
+    } else {
+        log->debug("VME init succeeded");
+        log->info("VME handle: {0:d}", handle);
     }
 
-    setupVeto();
+
+
+    if (setupVeto() != cvSuccess) {
+        log->error("Can't set up veto");
+    }
+    if (stopVeto() != cvSuccess) {
+        log->error("Can't stop veto");
+    } else {
+        log->debug("Veto stopped, sleeping 3 s.");
+        sleep(3);
+    }
+
+    if (startVeto() != cvSuccess) {
+        log->error("Can't start veto");
+    } else {
+        log->debug("Veto started, sleeping 5 s.");
+        sleep(5);
+    }    
+
+    if (stopVeto() != cvSuccess) {
+        log->error("Can't stop veto");
+    } else {
+        log->debug("Veto stopped.");
+    }
+
 
     // int status = CAENVME_Init2(cvETH_V4718, 0, 0, &handle);
     // if (status != cvSuccess) {
@@ -84,13 +118,30 @@ void VMEInterface::close() {
      *
      * @return true if the configuration is successful, false otherwise.
      */
-bool VMEInterface::setupVeto() {
-    bool ret = true;
-    ret = write(OUT_2_0_MUX_SET, 0x205);    // 0101 = 5 = Pulser A Output, 0 = Data Strobe Signal, 2 = Data Acknowledge Signal
-    ret &= write(PULSE_A_SETUP, 0x0);       
-    ret &= write(PULSE_A_WIDTH, 0x0000);    // 0 = Constant output signal
+int VMEInterface::setupVeto() {
+    // bool ret = true;
+    // ret = write(OUT_2_0_MUX_SET, 0x205);    // 0101 = 5 = Pulser A Output, 0 = Data Strobe Signal, 2 = Data Acknowledge Signal
+    // ret &= write(PULSE_A_SETUP, 0x0);       
+    // ret &= write(PULSE_A_WIDTH, 0x0000);    // 0 = Constant output signal
 
-    return ret;
+	//Pulser parametes
+	int re = 0;
+	unsigned char Period = 0x0000;
+	unsigned char Width = 0x0000;
+
+    re = CAENVME_SetPulserConf(handle, cvPulserA, Period,
+                      Width, cvUnit25ns, Width,
+                      cvManualSW, cvManualSW);
+
+    if (re != cvSuccess) {
+        return re;
+    }
+    re = CAENVME_SetOutputConf(handle, cvOutput1, cvDirect,
+                      cvActiveHigh, cvPulserV3718A);
+
+
+
+    return re;
 }
 
     /**
@@ -101,10 +152,13 @@ bool VMEInterface::setupVeto() {
      *
      * @return true if the veto signal is started successfully, false otherwise.
      */
-bool VMEInterface::startVeto() {
-    bool ret = true;
-    ret = write(PULSE_A_START, 0x1);    // bit 1 is SW trigger
-    return ret;
+int VMEInterface::startVeto() {
+    // bool ret = true;
+    // ret = write(PULSE_A_START, 0x1);    // bit 1 is SW trigger
+    // return ret;
+    int re = 0;
+    re = CAENVME_StartPulser(handle, cvPulserA);
+    return re;
 }
 
 /**
@@ -117,10 +171,15 @@ bool VMEInterface::startVeto() {
  * @return true if the veto signal is stopped successfully, false otherwise.
  */
 
-bool VMEInterface::stopVeto() {
-    bool ret = true;
-    ret = write(PULSE_A_START, 0x0);    // bit 1 is SW trigger
-    ret &= write(PULSE_A_CLEAR, 0x1);    // bit 1 is SW clear
-    ret &= write(PULSE_A_CLEAR, 0x0);    // bit 1 is SW clear
-    return ret;
+int VMEInterface::stopVeto() {
+    // bool ret = true;
+    // ret = write(PULSE_A_START, 0x0);    // bit 1 is SW trigger
+    // ret &= write(PULSE_A_CLEAR, 0x1);    // bit 1 is SW clear
+    // ret &= write(PULSE_A_CLEAR, 0x0);    // bit 1 is SW clear
+    // return ret;
+    int re = 0;
+    re = CAENVME_StopPulser(handle, cvPulserA);
+    return re;
+
 }
+

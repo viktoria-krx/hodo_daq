@@ -1,0 +1,27 @@
+[2025-02-25 15:44:05] [info] Hiya!
+[2025-02-25 15:44:05] [info] Starting TCP server on port 12345
+[2025-02-25 15:44:05] [error] Can't open VME controller
+[2025-02-25 15:44:05] [info] TCP server listening on port 12345
+[2025-02-25 15:44:05] [error] VME Write failed: -3 at offset 0x11
+[2025-02-25 15:44:05] [warning] V1190 module 0 is NOT online!
+[2025-02-25 15:44:05] [warning] V1190 module 1 is NOT online!
+[2025-02-25 15:44:05] [warning] V1190 module 2 is NOT online!
+[2025-02-25 15:44:05] [warning] V1190 module 3 is NOT online!
+[2025-02-25 15:44:05] [info] Trying to connect to the V2495 module
+[2025-02-25 15:44:07] [info] Received command: start
+[2025-02-25 15:44:07] [info] Starting data acquisition...
+[2025-02-25 15:44:07] [info] Starting run 23
+[2025-02-25 15:44:07] [error] VME Write failed: -3 at offset 0x11
+[2025-02-25 15:44:07] [error] VME Write failed: -3 at offset 0x12
+[2025-02-25 15:44:07] [error] VME Write failed: -3 at offset 0x12
+[2025-02-25 15:44:07] [info] Data acquisition started!
+[2025-02-25 15:44:21] [info] Received command: stop
+[2025-02-25 15:44:21] [info] Stopping data acquisition...
+[2025-02-25 15:44:21] [error] BLT Readout Error
+[2025-02-25 15:44:21] [error] BLT Readout Error
+[2025-02-25 15:44:21] [error] BLT Readout Error
+[2025-02-25 15:44:21] [error] BLT Readout Error
+[2025-02-25 15:44:21] [error] FIFO Readout Error
+[2025-02-25 15:44:21] [info] Data acquisition stopped
+[2025-02-25 15:44:23] [info] Received command: !
+[2025-02-25 15:44:23] [info] Deleting daq_control

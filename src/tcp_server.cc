@@ -12,6 +12,7 @@ extern void stop_run();
 extern bool pause_run();
 extern bool resume_run();
 extern int daq_exit();
+extern bool all_init;
 
 TCPServer::TCPServer(int port) : port(port), server_fd(-1), running(false) {}
 
@@ -85,7 +86,12 @@ void TCPServer::run() {
             log->info("Received command: {}", command);
 
             if (command == "start") {
-                start_run();
+                if (all_init) {
+                    start_run();
+                } else {
+                    log->error("Run cannot be started. Modules are not initialised.");
+                }
+                
                 if (write(client_fd, "Started\n", 8) == -1) {
                     log->error("Error writing to client");
                 }

@@ -34,7 +34,9 @@
 class VMEInterface {
     
 public:
-    VMEInterface(uint32_t vmeBaseAddress);
+    // VMEInterface(uint32_t vmeBaseAddress);
+    VMEInterface(int ConnType, char* vmeIPAddress);
+
     ~VMEInterface();
 
     bool init();
@@ -44,13 +46,15 @@ public:
     
     int getHandle() const { return handle; };
 
-    bool setupVeto();
-    bool startVeto();
-    bool stopVeto();
+    int setupVeto();
+    int startVeto();
+    int stopVeto();
 
 private:
-int handle;
-uint32_t vmeBaseAddress;
+    int handle = -1;
+    uint32_t vmeBaseAddress;
+    char* vmeIPAddress;
+    int ConnType;
 
 };
 

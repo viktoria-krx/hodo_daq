@@ -29,7 +29,8 @@ v1190::v1190(int vmeBaseAddress, int handle)
  */
 
 bool v1190::init(int tdcId){
-    if(!checkModuleResponse()) return false;
+
+   if(!checkModuleResponse()) return false;
 
     bool retVal = true;
     retVal &= setupV1190(tdcId);
@@ -176,7 +177,7 @@ bool v1190::checkModuleResponse(){
     V1190WriteDummyValue(0x1111, handle, vmeBaseAddress);
     dummy = V1190ReadDummyValue(handle, vmeBaseAddress);
 
-    log->debug("Checking response of TDC; dummy == {:#x}", dummy);
+    log->debug("Checking response of TDC; dummy == {:#x}, should be 0x1111", dummy);
     // std::cout << "dummy " << dummy << std::endl;
     if (dummy == 0x1111) return true;
     else return false;

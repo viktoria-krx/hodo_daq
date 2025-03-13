@@ -1,0 +1,20 @@
+[2025-03-12 16:17:58] [info] Hiya!
+[2025-03-12 16:17:58] [info] Starting TCP server on port 12345
+[2025-03-12 16:17:58] [info] TCP server listening on port 12345
+[2025-03-12 16:17:58] [info] VME handle: 0
+[2025-03-12 16:18:08] [warning] V1190 module 0 is NOT online!
+[2025-03-12 16:18:08] [warning] Hardware initialization failed. Retrying...
+[2025-03-12 16:18:10] [error] Can't open VME controller
+[2025-03-12 16:18:10] [warning] V1190 module 0 is NOT online!
+[2025-03-12 16:18:10] [warning] Hardware initialization failed. Retrying...
+[2025-03-12 16:18:12] [error] Can't open VME controller
+[2025-03-12 16:18:12] [warning] V1190 module 0 is NOT online!
+[2025-03-12 16:18:12] [warning] Hardware initialization failed. Retrying...
+[2025-03-12 16:18:14] [error] Can't open VME controller
+[2025-03-12 16:18:14] [warning] V1190 module 0 is NOT online!
+[2025-03-12 16:18:14] [warning] Hardware initialization failed. Retrying...
+[2025-03-12 16:18:16] [error] Can't open VME controller
+[2025-03-12 16:18:16] [warning] V1190 module 0 is NOT online!
+[2025-03-12 16:18:16] [warning] Hardware initialization failed. Retrying...
+[2025-03-12 16:18:17] [info] Received command: !
+[2025-03-12 16:18:17] [info] Deleting daq_control

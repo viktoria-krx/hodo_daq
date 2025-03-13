@@ -1,0 +1,11 @@
+[2025-03-07 16:43:53] [info] Hiya!
+[2025-03-07 16:43:53] [info] Starting TCP server on port 12345
+[2025-03-07 16:43:53] [info] TCP server listening on port 12345
+[2025-03-07 16:43:53] [error] Can't open VME controller
+[2025-03-07 16:43:53] [error] VME Write failed: -3 at offset 0x11
+[2025-03-07 16:43:53] [warning] V1190 module 0 is NOT online!
+[2025-03-07 16:43:53] [warning] V1190 module 1 is NOT online!
+[2025-03-07 16:43:53] [warning] V1190 module 2 is NOT online!
+[2025-03-07 16:43:53] [warning] V1190 module 3 is NOT online!
+[2025-03-07 16:43:53] [info] Trying to connect to the V2495 module
+[2025-03-07 16:43:53] [info] A connection with the V2495 module has been established

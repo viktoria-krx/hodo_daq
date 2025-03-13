@@ -18,8 +18,8 @@ void Logger::init() {
         console_sink->set_pattern("[%Y-%m-%d %H:%M:%S] [%^%l%$] %v");
 
         auto max_size = 1048576 * 5; // 5 MB
-        auto max_files = 10;
-        auto file_sink = std::make_shared<spdlog::sinks::rotating_file_sink_mt>("logs/logfile.txt", max_size, max_files, true);
+        auto max_files = 100;
+        auto file_sink = std::make_shared<spdlog::sinks::rotating_file_sink_mt>("../logs/logfile.txt", max_size, max_files, true);
         file_sink->set_level(spdlog::level::info);
         file_sink->set_pattern("[%Y-%m-%d %H:%M:%S] [%l] %v");
 

@@ -1,0 +1,15 @@
+[2025-03-13 13:52:36] [info] Hiya!
+[2025-03-13 13:52:36] [info] Starting TCP server on port 12345
+[2025-03-13 13:52:36] [info] TCP server listening on port 12345
+[2025-03-13 13:52:39] [info] Received command: start
+[2025-03-13 13:52:39] [error] Run cannot be started. Modules are not initialised.
+[2025-03-13 13:52:40] [error] Can't open VME controller
+[2025-03-13 13:52:40] [warning] V1190 module 0 is NOT online!
+[2025-03-13 13:52:40] [warning] Hardware initialization failed. Retrying...
+[2025-03-13 13:52:42] [info] Received command: stop
+[2025-03-13 13:52:42] [info] DAQ is not running, can't be stopped.
+[2025-03-13 13:52:49] [error] Can't open VME controller
+[2025-03-13 13:52:49] [warning] V1190 module 0 is NOT online!
+[2025-03-13 13:52:49] [warning] Hardware initialization failed. Retrying...
+[2025-03-13 13:52:49] [info] Received command: !
+[2025-03-13 13:52:49] [info] Deleting daq_control
