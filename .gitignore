@@ -1,6 +1,7 @@
 .vscode
-build/*
+*/build/*
 *.root
 *.bin
 *.csv
-logs/*
+*/logs/*
+*/output/*

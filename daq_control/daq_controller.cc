@@ -38,7 +38,7 @@ int handle = -1;
 VMEInterface vme(vmeConnType, vmeIPAddress);
 
 // Config file for run number: 
-const std::string runconfig = "../config/daq_config.conf";
+const std::string runconfig = "../../config/daq_config.conf";
 std::map<std::string, std::string> config;
 
 // Thread safe readout 

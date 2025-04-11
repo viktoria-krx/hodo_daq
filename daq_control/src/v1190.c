@@ -144,14 +144,14 @@ int V1190EventStored(int handle, int BaseAddress)
 unsigned short V1190GetFIFOWordCount(int handle, int BaseAddress)
 {
     unsigned int reg = 0;
-    VMEerror |= CAENVME_ReadCycle(handle, BaseAddress + EV_FIFO, &reg, cvA32_U_DATA, cvD16);
+    VMEerror |= CAENVME_ReadCycle(handle, BaseAddress + EV_FIFO, &reg, cvA32_U_DATA, cvD32);
     return (unsigned short)(reg & 0xffff);
 }
 
 unsigned int V1190GetEventCounter(int handle, int BaseAddress)
 {
     unsigned int reg = 0;
-    VMEerror |= CAENVME_ReadCycle(handle, BaseAddress + EV_CNT, &reg, cvA32_U_DATA, cvD16);
+    VMEerror |= CAENVME_ReadCycle(handle, BaseAddress + EV_CNT, &reg, cvA32_U_DATA, cvD32);
     return reg;
 }
 

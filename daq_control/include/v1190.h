@@ -39,7 +39,7 @@ extern "C" {
 #define EV_FIFO      0x1038
 #define EV_FIFO_STOR 0x103C
 #define EV_FIFO_STAT 0x103E
-#define DUMMY        0x1200
+#define DUMMY        0x1204
 #define CR_BOARDID0  0x403C
 #define CR_BOARDID1  0x4038
 #define CR_BOARDID2  0x4034

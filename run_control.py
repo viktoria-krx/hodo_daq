@@ -37,7 +37,7 @@ class DAQControllerApp:
         self.root = root
         self.root.title("Hodoscope DAQ")
 
-        icon_path = "daq_icon.png"
+        icon_path = "icons/daq_icon.png"
         icon = Image.open(icon_path)  # Open PNG icon
         icon = ImageTk.PhotoImage(icon)
         self.root.iconphoto(True, icon)
@@ -204,7 +204,7 @@ class DAQControllerApp:
         
         if self.daq_process is None or self.daq_process.poll() is not None:
             geometry = "120x24+600+1200"
-            self.daq_process = subprocess.Popen(["gnome-terminal",  f"--geometry={geometry}", "--title=DAQ Terminal", "--", "bash", "-c", "cd build; ./hodo_daq; exec bash"])
+            self.daq_process = subprocess.Popen(["gnome-terminal",  f"--geometry={geometry}", "--title=DAQ Terminal", "--", "bash", "-c", "cd daq_control/build; ./hodo_daq; exec bash"])
         self.start_button.config(state="normal")
         self.stop_button.config(state="normal")
         self.pause_button.config(state="normal")
