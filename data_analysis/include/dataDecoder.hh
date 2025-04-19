@@ -65,6 +65,7 @@ public:
     bool fillData(int channel, int edge, int32_t time, TDCEvent &event);
     void processEvent(const std::string& bankName, const std::vector<uint32_t>& data);
     constexpr int getChannel(int ch);
+    void flush();
 
 private:
     TFile* rootFile;

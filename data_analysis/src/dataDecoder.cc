@@ -299,7 +299,12 @@ constexpr int DataDecoder::getChannel(int tdcch) {
 
 }
 
-
+void DataDecoder::flush() {
+    if (tree && rootFile) {
+        tree->Write("", TObject::kOverwrite);        // ensures tree structure is written
+        rootFile->Flush();                           // ensures buffers are flushed to disk
+    }
+}
 
 
 

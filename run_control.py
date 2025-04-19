@@ -58,15 +58,15 @@ class DAQControllerApp:
         style.configure("TLabel", font=self.label_font)
         style.configure("CustomToggle.TCheckbutton", bootstyle="success-round-toggle", font=self.label_font)
 
-        self.root.grid_rowconfigure((0,1,2,3,5), weight=1)
-        self.root.grid_rowconfigure(4, weight=20)
+        self.root.grid_rowconfigure((0,1,2,3,4,6), weight=1)
+        self.root.grid_rowconfigure(5, weight=20)
         self.root.grid_columnconfigure((0, 1, 2, 3, 4, 5), weight=10)
         # self.root.grid_columnconfigure(5, weight=40)
 
         # Console output to text box
         self.console_output = ttk.Text(root, height=10, width=300, wrap="word", state="disabled", font=self.text_font)
         # self.console_output = ScrolledText(root, height=10, width=160, wrap="word", state="disabled", font=self.text_font) #
-        self.console_output.grid(row=5, column=0, columnspan=6, sticky="s", padx=20, pady=20)
+        self.console_output.grid(row=6, column=0, columnspan=6, sticky="s", padx=20, pady=20)
 
         # Redirect stdout & stderr
         self.console = ConsoleRedirector(self.console_output)
@@ -75,7 +75,7 @@ class DAQControllerApp:
 
         # Scrollbar
         self.scrollbar = ttk.Scrollbar(root, command=self.console_output.yview, bootstyle="info-round", orient="vertical")
-        self.scrollbar.grid(row=5, column=6, sticky="nse")
+        self.scrollbar.grid(row=6, column=6, sticky="nse")
         self.console_output.config(yscrollcommand=self.scrollbar.set)
 
         # Read configuration
@@ -139,6 +139,14 @@ class DAQControllerApp:
 
         self.resume_button = ttk.Button(root, text="Resume", command=self.resume_daq, width=self.button_width, bootstyle="success", state="disabled")
         self.resume_button.grid(row=3, column=3, columnspan = 1, sticky="n", padx=20, pady=20)
+
+        # Live analysis checkbox
+        self.live_analysis_var = ttk.BooleanVar()
+        self.live_analysis_checkbox = ttk.Checkbutton(root, text=" ", variable=self.live_analysis_var, command=self.toggle_live_analysis, bootstyle="success-round-toggle", state="disabled")
+        self.live_analysis_checkbox.grid(row=4, column=0, sticky="ne", padx=40, pady=30)
+        self.live_analysis_label = ttk.Label(root, text="Live Analysis", font=self.label_font, bootstyle="secondary")
+        self.live_analysis_label.grid(row=4, column=0, sticky="n", padx=50, pady=20)
+
 
         self.daq_process = None
         self.run_running = False
@@ -211,6 +219,9 @@ class DAQControllerApp:
         self.resume_button.config(state="normal")
         self.auto_run_checkbox.config(state="normal")
         self.auto_run_label.config(bootstyle="success")
+        self.auto_run_enabled = True
+        self.live_analysis_checkbox.config(state="normal")
+        self.live_analysis_label.config(bootstyle="success")
         self.stop_daq_button.config(state="normal")
 
     def read_config(self):
@@ -313,6 +324,20 @@ class DAQControllerApp:
             self.console.write("Auto-stopping the run due to time limit.", "WARNING")
             self.stop_run()
             self.run_active = False
+
+    def toggle_live_analysis(self):
+        """Enables or disables live analysis."""
+        if self.live_analysis_var.get():
+            self.live_analysis_enabled = True
+            threading.Thread(target=self.live_analysis_monitor, daemon=True).start()
+
+        else:
+            self.live_analysis_enabled = False
+
+    def live_analysis_monitor(self):
+        """Starts analysis and waits for incoming data."""
+        subprocess.Popen(["xterm", "-e", "./data_analysis/build/hodo_analysis", str(self.run_number)])
+
 
 # Run the application
 if __name__ == "__main__":

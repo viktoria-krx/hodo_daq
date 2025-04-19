@@ -36,6 +36,17 @@ int countNonZeroToT(const std::array<Double_t, N>& tot) {
 }
 
 template <size_t N>
+std::vector<int> getActiveIndices(const std::array<Double_t, N>& arr) {
+    std::vector<int> indices;
+    for (size_t i = 0; i < N; ++i) {
+        if (!std::isnan(arr[i]) && arr[i] > 0) {
+            indices.push_back(i);
+        }
+    }
+    return indices;
+}
+
+template <size_t N>
 void mergeIfUnset(Double_t (&out)[N], const Double_t (&in)[N]) {
     for (size_t i = 0; i < N; ++i) {
         if (std::isnan(out[i]) && !std::isnan(in[i])) {
@@ -71,52 +82,13 @@ void mergeIfUnset(Bool_t (&out), const Bool_t (&in)) {
     }
 }
 
-void DataFilter::filterAndSend(const char* inputFile) {
-
-    // Set up ZeroMQ Publisher
-    zmq::context_t context(1);
-    zmq::socket_t socket(context, ZMQ_PUB);
-    socket.bind("tcp://*:5557");  // Publisher socket for sending filtered data
-
-    // Load ROOT file
-    ROOT::RDataFrame df("tree", inputFile);
-
-    // Example filter: select events where tdcTimeTag > 1000
-    auto filtered_df = df.Filter("bgoLE < " + std::to_string(LE_CUT), "Time Cut")
-            .Define("hodoODsToT", computeToT<32>, {"hodoODsLE", "hodoODsTE"})
-            .Define("hodoOUsToT", computeToT<32>, {"hodoOUsLE", "hodoOUsTE"})
-            .Define("hodoIDsToT", computeToT<32>, {"hodoIDsLE", "hodoIDsTE"})
-            .Define("hodoIUsToT", computeToT<32>, {"hodoIUsLE", "hodoIUsTE"})
-            .Define("bgoToT", computeToT<64>, {"bgoLE, bgoLE"})
-            .Define("bgoCts", countNonZeroToT<64>, {"bgoToT"})
-            .Filter(barCoincidence<32>, {"hodoODsToT", "hodoOUsToT"})
-            .Filter(barCoincidence<32>, {"hodoODsToT", "hodoOUsToT"})
-            .Filter("bgoCts > 1", "BGO Cut");
-
-    auto nEntriesAfterCuts = filtered_df.Count();
-
-    // Process filtered results
-    filtered_df.Foreach([&socket](uint32_t eventID, uint32_t tdcTimeTag) {
-        std::stringstream ss;
-        ss << eventID << " " << tdcTimeTag;
-
-        zmq::message_t message(ss.str().c_str(), ss.str().size());
-        socket.send(message, zmq::send_flags::none);
-        
-    }, {"eventID", "tdcTimeTag"});
-
-    std::cout << "Filtered data sent to ZeroMQ." << std::endl;
-}
-
-
-void DataFilter::fileSorter(const char* inputFile, int last_evt) {
+void DataFilter::fileSorter(const char* inputFile, int last_evt, const char* outputFile) {
     TFile* file = TFile::Open(inputFile);
-    TTree* tree = (TTree*)file->Get("yourTreeName");
+    TTree* tree = (TTree*)file->Get("rawTree");
 
     // New output file
-    TFile* outputFile = new TFile("merged_sorted.root", "RECREATE");
-    TTree* newTree = new TTree("tree", "Merged + Filtered");
-
+    TFile* output = new TFile(outputFile, "UPDATE");
+    TTree* newTree = (TTree*)output->Get("eventTree");
     // TTree* newTree = tree->CloneTree(0);
 
     TDCEvent eventIn;
@@ -159,44 +131,84 @@ void DataFilter::fileSorter(const char* inputFile, int last_evt) {
 
 
     TDCEvent eventOut;
+    
+    if (!newTree) {
+        newTree = new TTree("eventTree", "TDCs Merged");
 
-    newTree->Branch("eventID",        &eventOut.eventID);
-    newTree->Branch("timestamp",      &eventOut.timestamp);
-    newTree->Branch("cuspRunNumber",  &eventOut.cuspRunNumber);
-    newTree->Branch("gate",           &eventOut.gate);
-    newTree->Branch("tdcTimeTag",     &eventOut.tdcTimeTag);
-    newTree->Branch("trgLE",          &eventOut.trgLE);
-    newTree->Branch("trgTE",          &eventOut.trgTE);
+        newTree->Branch("eventID",        &eventOut.eventID);
+        newTree->Branch("timestamp",      &eventOut.timestamp);
+        newTree->Branch("cuspRunNumber",  &eventOut.cuspRunNumber);
+        newTree->Branch("gate",           &eventOut.gate);
+        newTree->Branch("tdcTimeTag",     &eventOut.tdcTimeTag);
+        newTree->Branch("trgLE",          &eventOut.trgLE);
+        newTree->Branch("trgTE",          &eventOut.trgTE);
 
-    newTree->Branch("hodoIDsLE",      &eventOut.hodoIDsLE);
-    newTree->Branch("hodoIUsLE",      &eventOut.hodoIUsLE);
-    newTree->Branch("hodoODsLE",      &eventOut.hodoODsLE);
-    newTree->Branch("hodoOUsLE",      &eventOut.hodoOUsLE);
-    newTree->Branch("hodoIDsTE",      &eventOut.hodoIDsTE);
-    newTree->Branch("hodoIUsTE",      &eventOut.hodoIUsTE);
-    newTree->Branch("hodoODsTE",      &eventOut.hodoODsTE);
-    newTree->Branch("hodoOUsTE",      &eventOut.hodoOUsTE);
-    // newTree->Branch("hodoIDsToT",     &eventOut.hodoIDsToT);
-    // newTree->Branch("hodoIUsToT",     &eventOut.hodoIUsToT);
-    // newTree->Branch("hodoODsToT",     &eventOut.hodoODsToT);
-    // newTree->Branch("hodoOUsToT",     &eventOut.hodoOUsToT);
+        newTree->Branch("hodoIDsLE",      &eventOut.hodoIDsLE);
+        newTree->Branch("hodoIUsLE",      &eventOut.hodoIUsLE);
+        newTree->Branch("hodoODsLE",      &eventOut.hodoODsLE);
+        newTree->Branch("hodoOUsLE",      &eventOut.hodoOUsLE);
+        newTree->Branch("hodoIDsTE",      &eventOut.hodoIDsTE);
+        newTree->Branch("hodoIUsTE",      &eventOut.hodoIUsTE);
+        newTree->Branch("hodoODsTE",      &eventOut.hodoODsTE);
+        newTree->Branch("hodoOUsTE",      &eventOut.hodoOUsTE);
+        // newTree->Branch("hodoIDsToT",     &eventOut.hodoIDsToT);
+        // newTree->Branch("hodoIUsToT",     &eventOut.hodoIUsToT);
+        // newTree->Branch("hodoODsToT",     &eventOut.hodoODsToT);
+        // newTree->Branch("hodoOUsToT",     &eventOut.hodoOUsToT);
 
-    newTree->Branch("bgoLE",          &eventOut.bgoLE);
-    newTree->Branch("bgoTE",          &eventOut.bgoTE);
-    // newTree->Branch("bgoToT",         &eventOut.bgoToT);
+        newTree->Branch("bgoLE",          &eventOut.bgoLE);
+        newTree->Branch("bgoTE",          &eventOut.bgoTE);
+        // newTree->Branch("bgoToT",         &eventOut.bgoToT);
 
-    newTree->Branch("tileILE",        &eventOut.tileILE);
-    newTree->Branch("tileITE",        &eventOut.tileITE);
-    // newTree->Branch("tileIToT",       &eventOut.tileIToT);
-    newTree->Branch("tileOLE",        &eventOut.tileOLE);
-    newTree->Branch("tileOTE",        &eventOut.tileOTE);
-    // newTree->Branch("tileOToT",       &eventOut.tileOToT);
+        newTree->Branch("tileILE",        &eventOut.tileILE);
+        newTree->Branch("tileITE",        &eventOut.tileITE);
+        // newTree->Branch("tileIToT",       &eventOut.tileIToT);
+        newTree->Branch("tileOLE",        &eventOut.tileOLE);
+        newTree->Branch("tileOTE",        &eventOut.tileOTE);
+        // newTree->Branch("tileOToT",       &eventOut.tileOToT);
 
-    newTree->Branch("tdcID",          &eventOut.tdcID);
-    // newTree->Branch("tdcChannel",     &eventOut.tdcChannel);
-    // newTree->Branch("tdcTime",        &eventOut.tdcTime);
+        newTree->Branch("tdcID",          &eventOut.tdcID);
+        // newTree->Branch("tdcChannel",     &eventOut.tdcChannel);
+        // newTree->Branch("tdcTime",        &eventOut.tdcTime);
 
+    } else {
+        newTree->SetBranchAddress("eventID",        &eventOut.eventID);
+        newTree->SetBranchAddress("timestamp",      &eventOut.timestamp);
+        newTree->SetBranchAddress("cuspRunNumber",  &eventOut.cuspRunNumber);
+        newTree->SetBranchAddress("gate",           &eventOut.gate);
+        newTree->SetBranchAddress("tdcTimeTag",     &eventOut.tdcTimeTag);
+        newTree->SetBranchAddress("trgLE",          &eventOut.trgLE);
+        newTree->SetBranchAddress("trgTE",          &eventOut.trgTE);
 
+        newTree->SetBranchAddress("hodoIDsLE",      &eventOut.hodoIDsLE);
+        newTree->SetBranchAddress("hodoIUsLE",      &eventOut.hodoIUsLE);
+        newTree->SetBranchAddress("hodoODsLE",      &eventOut.hodoODsLE);
+        newTree->SetBranchAddress("hodoOUsLE",      &eventOut.hodoOUsLE);
+        newTree->SetBranchAddress("hodoIDsTE",      &eventOut.hodoIDsTE);
+        newTree->SetBranchAddress("hodoIUsTE",      &eventOut.hodoIUsTE);
+        newTree->SetBranchAddress("hodoODsTE",      &eventOut.hodoODsTE);
+        newTree->SetBranchAddress("hodoOUsTE",      &eventOut.hodoOUsTE);
+        // newTree->SetBranchAddress("hodoIDsToT",     &eventOut.hodoIDsToT);
+        // newTree->SetBranchAddress("hodoIUsToT",     &eventOut.hodoIUsToT);
+        // newTree->SetBranchAddress("hodoODsToT",     &eventOut.hodoODsToT);
+        // newTree->SetBranchAddress("hodoOUsToT",     &eventOut.hodoOUsToT);
+
+        newTree->SetBranchAddress("bgoLE",          &eventOut.bgoLE);
+        newTree->SetBranchAddress("bgoTE",          &eventOut.bgoTE);
+        // newTree->SetBranchAddress("bgoToT",         &eventOut.bgoToT);
+
+        newTree->SetBranchAddress("tileILE",        &eventOut.tileILE);
+        newTree->SetBranchAddress("tileITE",        &eventOut.tileITE);
+        // newTree->SetBranchAddress("tileIToT",       &eventOut.tileIToT);
+        newTree->SetBranchAddress("tileOLE",        &eventOut.tileOLE);
+        newTree->SetBranchAddress("tileOTE",        &eventOut.tileOTE);
+        // newTree->SetBranchAddress("tileOToT",       &eventOut.tileOToT);
+
+        newTree->SetBranchAddress("tdcID",          &eventOut.tdcID);
+        // newTree->SetBranchAddress("tdcChannel",     &eventOut.tdcChannel);
+        // newTree->SetBranchAddress("tdcTime",        &eventOut.tdcTime);
+
+    }
 
     // Map to store merged events by eventID
     std::map<uint32_t, TDCEvent> mergedEvents;
@@ -262,4 +274,54 @@ void DataFilter::fileSorter(const char* inputFile, int last_evt) {
         newTree->Fill();
 
     }
+
+    output->cd();
+    newTree->Write("", TObject::kOverwrite);
+    output->Close();
+
 }
+
+
+void DataFilter::filterAndSend(const char* inputFile, int last_evt) {
+
+    // Set up ZeroMQ Publisher
+    zmq::context_t context(1);
+    zmq::socket_t socket(context, ZMQ_PUB);
+    socket.bind("tcp://*:5557");  // Publisher socket for sending filtered data
+
+    // Load ROOT file
+    ROOT::RDataFrame df("tree", inputFile);
+
+    // Example filter: select events where tdcTimeTag > 1000
+    auto filtered_df = df.Filter("eventID > " + std::to_string(last_evt), "New Events")
+            .Filter("bgoLE < " + std::to_string(LE_CUT), "Time Cut")
+            .Define("hodoODsToT", computeToT<32>, {"hodoODsLE", "hodoODsTE"})
+            .Define("hodoOUsToT", computeToT<32>, {"hodoOUsLE", "hodoOUsTE"})
+            .Define("hodoIDsToT", computeToT<32>, {"hodoIDsLE", "hodoIDsTE"})
+            .Define("hodoIUsToT", computeToT<32>, {"hodoIUsLE", "hodoIUsTE"})
+            .Define("bgoToT", computeToT<64>, {"bgoLE, bgoLE"})
+            .Define("bgoCts", countNonZeroToT<64>, {"bgoToT"})
+            .Filter(barCoincidence<32>, {"hodoODsToT", "hodoOUsToT"})
+            .Filter(barCoincidence<32>, {"hodoODsToT", "hodoOUsToT"})
+            .Filter("bgoCts > 1", "BGO Cut")
+            .Define("bgoToT_ActiveIndices", getActiveIndices<64>, {"bgoToT"});
+
+    auto nEntriesAfterCuts = filtered_df.Count();
+
+    // Process filtered results
+    filtered_df.Foreach([&socket](uint32_t eventID, uint32_t tdcTimeTag, const std::vector<int>& activeBGO) {
+        std::stringstream ss;
+        ss << eventID << " " << tdcTimeTag;
+
+        for (int ch : activeBGO) {
+            ss << " " << ch;
+        }
+
+        zmq::message_t message(ss.str().c_str(), ss.str().size());
+        socket.send(message, zmq::send_flags::none);
+
+    }, {"eventID", "tdcTimeTag", "bgoToT_ActiveIndices"});
+
+    std::cout << "Filtered data sent to ZeroMQ." << std::endl;
+}
+

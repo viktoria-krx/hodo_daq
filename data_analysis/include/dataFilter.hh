@@ -15,8 +15,8 @@ class DataFilter {
 public:
     DataFilter(const char* inputFile);
     ~DataFilter();
-    void filterAndSend(const char* inputFile);
-    void fileSorter(const char* inputFile, int last_evt);
+    void filterAndSend(const char* inputFile, int last_evt);
+    void fileSorter(const char* inputFile, int last_evt, const char* outputFileName);
 private:
     int LE_CUT = 400;   // ns
     int ToT_CUT = 200;  // ns 
