@@ -11,15 +11,15 @@ file(GLOB headers ${PROJECT_SOURCE_DIR}/include/*.hh ${PROJECT_SOURCE_DIR}/inclu
 set(CMAKE_C_COMPILER "/usr/bin/gcc")
 set(CMAKE_CXX_COMPILER "/usr/bin/g++")
 
-set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 
 #set(CAENVMELIB_PATH "/home/viktoria/software/CAEN/CAENVMELib-v4.0.2/")
 #set(CAENPLULIB_PATH "/home/viktoria/software/CAEN/CAEN_PLU-1.2")
 
-set(CMAKE_PREFIX_PATH ${CMAKE_PREFIX_PATH} /home/viktoria/Documents/Hodoscope/blt_frontend/spdlog/build/)
-set(CMAKE_PREFIX_PATH ${CMAKE_PREFIX_PATH} /home/viktoria/Documents/Hodoscope/blt_frontend/cppzmq/build/)
+set(CMAKE_PREFIX_PATH ${CMAKE_PREFIX_PATH} /home/hododaq/software/spdlog/build/)
+set(CMAKE_PREFIX_PATH ${CMAKE_PREFIX_PATH} /home/hododaq/software/zmq/cppzmq/build/)
 #find_library(CAENVMELIB NAMES CAENVMELib PATHS /usr/lib/libCAENVME.so)
 find_package(spdlog REQUIRED)
 find_package(cppzmq REQUIRED)

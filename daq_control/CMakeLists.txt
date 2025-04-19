@@ -11,17 +11,17 @@ file(GLOB headers ${PROJECT_SOURCE_DIR}/include/*.hh ${PROJECT_SOURCE_DIR}/inclu
 set(CMAKE_C_COMPILER "/usr/bin/gcc")
 set(CMAKE_CXX_COMPILER "/usr/bin/g++")
 
-set(CAENVMELIB_PATH "/home/viktoria/software/CAEN/CAENVMELib-v4.0.2/")
-set(CAENPLULIB_PATH "/home/viktoria/software/CAEN/CAEN_PLU-1.2")
+set(CAENVMELIB_PATH "/home/hododaq/software/CAEN/CAENVMELib-v4.0.2/")
+set(CAENPLULIB_PATH "/home/hododaq/software/CAEN/CAEN_PLU-1.2")
 
-set(CMAKE_PREFIX_PATH ${CMAKE_PREFIX_PATH} /home/viktoria/Documents/Hodoscope/blt_frontend/spdlog/build/)
+set(CMAKE_PREFIX_PATH ${CMAKE_PREFIX_PATH} /home/hododaq/software/spdlog/build/)
 
-#find_library(CAENVMELIB NAMES CAENVMELib PATHS /usr/lib/libCAENVME.so)
+# find_library(CAENVMELIB NAMES CAENVMELib PATHS /usr/lib/libCAENVME.so)
 find_package(spdlog REQUIRED)
 
-#if (NOT CAENVMELIB)
-#    message(FATAL_ERROR "CAENVME library not found in ${CAENVMELIB_PATH}. Check the path!")
-#endif()
+# if (NOT CAENVMELIB)
+#     message(FATAL_ERROR "CAENVME library not found in ${CAENVMELIB_PATH}. Check the path!")
+# endif()
 
 
 include_directories(${CAENVMELIB_PATH}/include)
