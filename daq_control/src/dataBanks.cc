@@ -37,25 +37,31 @@ std::vector<uint32_t> DataBank::serialize() const {
     std::vector<uint32_t> buffer;
 
     // Write Bank Name (4 bytes)
-    buffer.insert(buffer.end(), bankName, bankName + 4);
+    uint32_t packedBankName = (bankName[0] << 24) | (bankName[1] << 16) | (bankName[2] << 8) | (bankName[3]);
+    // buffer.insert(buffer.end(), bankName, bankName + 4);
+    buffer.push_back(packedBankName);
 
     // Write number of events
     uint32_t eventCount = events.size();
-    buffer.insert(buffer.end(), reinterpret_cast<const uint32_t*>(&eventCount), 
-                  reinterpret_cast<const uint32_t*>(&eventCount) + sizeof(eventCount));
+    // buffer.insert(buffer.end(), reinterpret_cast<const uint32_t*>(&eventCount), 
+    //               reinterpret_cast<const uint32_t*>(&eventCount) + sizeof(eventCount));
+    buffer.push_back(eventCount);
 
     // Serialize each event
     for (const auto& event : events) {
-        buffer.insert(buffer.end(), reinterpret_cast<const uint32_t*>(&event.timestamp),
-                      reinterpret_cast<const uint32_t*>(&event.timestamp) + sizeof(event.timestamp));
+        // buffer.insert(buffer.end(), reinterpret_cast<const uint32_t*>(&event.timestamp),
+        //               reinterpret_cast<const uint32_t*>(&event.timestamp) + sizeof(event.timestamp));
+        buffer.push_back(event.timestamp);
 
         uint32_t dataSize = event.data.size();
-        buffer.insert(buffer.end(), reinterpret_cast<const uint32_t*>(&dataSize),
-                      reinterpret_cast<const uint32_t*>(&dataSize) + sizeof(dataSize));
+        // buffer.insert(buffer.end(), reinterpret_cast<const uint32_t*>(&dataSize),
+        //               reinterpret_cast<const uint32_t*>(&dataSize) + sizeof(dataSize));
+        buffer.push_back(dataSize);
 
         if (!event.data.empty()) {
-            buffer.insert(buffer.end(), reinterpret_cast<const uint32_t*>(event.data.data()),
-                          reinterpret_cast<const uint32_t*>(event.data.data()) + dataSize * sizeof(uint32_t));
+            // buffer.insert(buffer.end(), reinterpret_cast<const uint32_t*>(event.data.data()),
+            //               reinterpret_cast<const uint32_t*>(event.data.data()) + dataSize * sizeof(uint32_t));
+            buffer.insert(buffer.end(), event.data.begin(), event.data.end());
         }
     }
 
@@ -100,13 +106,15 @@ std::vector<uint32_t> Block::serialize() const {
     std::vector<uint32_t> buffer;
 
     // Write Block ID (4 bytes)
-    buffer.insert(buffer.end(), reinterpret_cast<const uint8_t*>(&blockID), 
-                  reinterpret_cast<const uint8_t*>(&blockID) + sizeof(blockID));
+    buffer.push_back(blockID);
+    // buffer.insert(buffer.end(), reinterpret_cast<const uint8_t*>(&blockID), 
+    //               reinterpret_cast<const uint8_t*>(&blockID) + sizeof(blockID));
 
     // Write number of banks (4 bytes)
     uint32_t bankCount = banks.size();
-    buffer.insert(buffer.end(), reinterpret_cast<const uint8_t*>(&bankCount),
-                  reinterpret_cast<const uint8_t*>(&bankCount) + sizeof(bankCount));
+    buffer.push_back(bankCount);
+    // buffer.insert(buffer.end(), reinterpret_cast<const uint8_t*>(&bankCount),
+    //               reinterpret_cast<const uint8_t*>(&bankCount) + sizeof(bankCount));
 
     // Serialize each bank
     for (const auto& bank : banks) {

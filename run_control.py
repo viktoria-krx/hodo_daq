@@ -188,6 +188,7 @@ class DAQControllerApp:
         self.start_button.config(state="disabled")
         self.run_running = True
         self.update_floodgauge()
+        self.update_run_number()
 
     def stop_run(self):
         self.send_command("stop")
@@ -231,7 +232,7 @@ class DAQControllerApp:
             geometry = "120x24+600+1200"
             self.daq_process = subprocess.Popen(["gnome-terminal",  f"--geometry={geometry}", 
                                                  "--title=DAQ Terminal", "--", "bash", "-c", 
-                                                 "cd daq_control/build; gdb ./hodo_daq; exec bash"])
+                                                 "cd daq_control/build; ./hodo_daq; exec bash"])
         self.start_button.config(state="normal")
         self.stop_button.config(state="normal")
         self.pause_button.config(state="normal")

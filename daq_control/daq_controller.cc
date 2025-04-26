@@ -30,7 +30,7 @@ int V2495Status[NUM_FPGAS];
 static const unsigned int vmeBaseAddress = 0x32100000;
 char* vmeIPAddress = "192.168.1.254\0";
 static const unsigned int TDCbaseAddresses[] = {0x90900000, 0x90910000, 0x90920000, 0x90930000};
-const char* FPGAbaseAddress = "32100000";
+const char* FPGAbaseAddress = "30300000";
 // static const unsigned int FPGAserialNumber = 28;
 
 static const int vmeConnType = cvETH_V4718;
@@ -48,6 +48,7 @@ std::condition_variable dataAvailable;
 bool stopReadout = false;
 std::vector<std::thread> readoutThreads;
 std::thread pollingThread;
+std::thread processingThread;
 
 // Thread safe writing
 std::queue<std::vector<uint32_t>> blockQueue;
@@ -174,11 +175,12 @@ void writeBinFile(const std::vector<uint32_t>& data) {
 
     int runNumber = std::stoi(config["run_number"]);
     // Get filename as char*
-    char* filename = getRunFilename(runNumber, config["data_path"], config["file_prefix"]);
+    char* filename = getRunFilename(runNumber, config["daq_path"]+config["data_path"], config["file_prefix"]);
     // log->info("Starting run {0:d}, saving data to: {1}", runNumber, filename);
 
     FILE* file = fopen(filename, "ab");
-    fwrite(data.data(), 1, data.size(), file);
+    // fwrite(data.data(), 1, data.size(), file);
+    fwrite(data.data(), sizeof(uint32_t), data.size(), file);
     fclose(file);
     free(filename);
 }
@@ -232,7 +234,7 @@ void fileWriterThread() {
       std::unique_lock<std::mutex> lock(bankQueueMutex);
       dataAvailable.wait(lock, [] {return !bankQueue.empty() || stopReadout; });
 
-      if (stopReadout) break;
+      if (bankQueue.empty() && stopReadout) break;
 
       Block block(blockID);
 
@@ -245,9 +247,9 @@ void fileWriterThread() {
 
       lock.unlock();
 
-      DataBank GATE("GATE");
-      fpgas[0]->readFIFO(GATE, 0x0000);   // This function will only be properly written once I have a working Gate Register on the V2495
-      block.addDataBank(GATE);
+      // DataBank GATE("GATE");
+      // fpgas[0]->readFIFO(GATE, 0x0000);   // This function will only be properly written once I have a working Gate Register on the V2495
+      // block.addDataBank(GATE);
 
       DataBank CUSP("CUSP");        // Adding the current ms timestamp to the CUSP bank, since this won't change anything
       auto now = std::chrono::system_clock::now();
@@ -261,6 +263,7 @@ void fileWriterThread() {
           eventCUSPrun.timestamp = now_ms;
           CUSP.addEvent(eventCUSPrun);
       }
+      block.addDataBank(CUSP);
 
       std::vector<uint32_t> binaryData = block.serialize();
       {
@@ -323,8 +326,6 @@ void polling() {
         log->error("Unknown exception in polling thread!");
     }
 
-
-
 }
 
 
@@ -378,6 +379,7 @@ bool start_run() {
         stopReadout = false;
         stopWriter = false;
         pollingThread = std::thread(polling);
+        processingThread = std::thread(processEvents);
         fileWriter = std::thread(fileWriterThread);
     } catch (const std::exception& e) {
         log->error("Failed to create polling thread: {}", e.what());
@@ -421,6 +423,9 @@ void stop_run() {
         if (pollingThread.joinable()) {
             pollingThread.join();  // Wait for polling thread to finish
         }
+        if (processingThread.joinable()) {
+            processingThread.join();
+        }
 
         for (auto& thread : readoutThreads) {
             if (thread.joinable()) {
@@ -463,9 +468,9 @@ void stop_run() {
             lock.unlock();
 
             // Also add the last GATE and CUSP banks
-            DataBank GATE("GATE");
-            fpgas[0]->readFIFO(GATE, 0x0000);  
-            finalBlock.addDataBank(GATE);
+            //DataBank GATE("GATE");
+            //fpgas[0]->readFIFO(GATE, 0x0000);  
+            //finalBlock.addDataBank(GATE);
 
             DataBank CUSP("CUSP");        
             auto now = std::chrono::system_clock::now();

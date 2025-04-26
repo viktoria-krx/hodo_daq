@@ -80,8 +80,8 @@ bool v1190::setupV1190(int tdcId){
     cr = V1190ReadControlRegister(handle, vmeBaseAddress);
 
     // cr = v1190_EnableFifo(vme, vmeBaseAdress);
-    // printf("\n  Control register status (FIFO ON bit6): 0x%04x \n", cr );
-    log->debug("Control register status (FIFO ON bit6): {0:#x}", cr);
+    // printf("\n  Control register status: 0x%04x \n", cr );
+    log->debug("Control register status: {0:#x}", cr);
 
     //////////////////////////////////////////////////////////////
 
@@ -106,7 +106,7 @@ bool v1190::setupV1190(int tdcId){
 
     //////////////////////////////////////////////////////////////
 
-    unsigned short int almost_full_level = 4096; //512;  //Maximum nr of 32-bit words per BLT
+    unsigned short int almost_full_level = 2*4096; //512;  //Maximum nr of 32-bit words per BLT
     // 16383;  //Maximum nr of 32-bit words per BLT for 1000 Hz
     V1190SetAlmostFullLevel(almost_full_level, handle, vmeBaseAddress);
 
@@ -295,7 +295,7 @@ unsigned int v1190::BLTRead(DataBank& dataBank) {
 
         // Check for Global Header (start of event)
         if (IS_GLOBAL_HEADER(word)) {  
-            log->debug("word: {}", word);
+            log->debug("word: {:#x}", word);
             if (!currentEvent.data.empty()) {
                 dataBank.addEvent(currentEvent);            //  Add completed event
                 currentEvent.data.clear();
@@ -313,8 +313,12 @@ unsigned int v1190::BLTRead(DataBank& dataBank) {
             dataBank.addEvent(currentEvent);                // Add final event
             currentEvent.data.clear();
         }
+        else if (IS_FILLER(word)) {
+            // ignore filler words
+            continue;
+        }
         // Regular data word
-        else {
+        else{
             currentEvent.data.push_back(word);
         }
     }
@@ -427,7 +431,6 @@ void v1190::getStatusReg()
      */
 bool v1190::start()
 {
-
     code[0] = 0x4200;  // enable all channels
     code[1] = 0x1;
     value = V1190WriteOpcode(2, code, handle, vmeBaseAddress);

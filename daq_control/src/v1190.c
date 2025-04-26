@@ -175,12 +175,7 @@ unsigned int V1190GetEventCounter(int handle, int BaseAddress)
 unsigned int V1190BLTRead(unsigned int *buffer, int BufferSize, int* nb, int handle, int BaseAddress)
 {
     unsigned int ret = 0;
-    ret = CAENVME_FIFOBLTReadCycle(handle, BaseAddress, (unsigned char*)buffer, BufferSize, cvA32_U_MBLT, cvD64, &nb);
-
-    // if ((ret != cvSuccess) && (ret != cvBusError)) {
-    //     printf("Readout Error\n");
-    //     goto exit_prog;
-    // }
+    ret = CAENVME_FIFOBLTReadCycle(handle, BaseAddress, (unsigned char*)buffer, BufferSize, cvA32_U_MBLT, cvD64, nb);
 
     return ret;
 }
