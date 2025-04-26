@@ -1,3 +1,5 @@
+#!/home/hododaq/anaconda3/bin/python
+
 import subprocess
 import ttkbootstrap as ttk
 from ttkbootstrap.constants import *
@@ -37,20 +39,20 @@ class DAQControllerApp:
         self.root = root
         self.root.title("Hodoscope DAQ")
 
-        icon_path = "icons/daq_icon.png"
+        icon_path = "/home/hododaq/hodo_daq/icons/daq_icon.png"
         icon = Image.open(icon_path)  # Open PNG icon
         icon = ImageTk.PhotoImage(icon)
-        self.root.iconphoto(True, icon)
+        self.root.iconphoto(False, icon)
 
         screen_width = self.root.winfo_screenwidth()
         screen_height = self.root.winfo_screenheight()
-        self.root.geometry(f"{int(screen_width*0.75)}x{int(screen_height*0.75)}+0+0")
+        self.root.geometry(f"{int(screen_width*0.7)}x{int(screen_height*0.75)}+0+0")
 
         self.font_size = max(12, int(screen_height / 120))  # Scale with screen height, min size 12
-        self.button_font = ("Open-Sans", self.font_size)
-        self.label_font = ("Open-Sans", self.font_size)
-        self.text_font = ("Open-Sans", int(self.font_size/2))
-        self.title_font = ("Open-Sans", int(self.font_size*1.5))
+        self.button_font = ("clean", self.font_size)
+        self.label_font = ("clean", self.font_size)
+        self.text_font = ("clean", int(self.font_size))
+        self.title_font = ("clean", int(self.font_size*1.5))
 
         # Configure ttk Style
         style = ttk.Style()
@@ -84,8 +86,8 @@ class DAQControllerApp:
         self.run_number = self.config.get("run_number", "Unknown")  # Get run_number or default to "Unknown"
 
         # CUSP run number file
-        self.run_file = "cusp_run_number.txt"  # Change this to your actual run number file
-        self.cusp_number = self.read_cusp_run_number().get("cusprun", 0)
+        self.run_file = "CUSP/Number.txt"  # Change this to your actual run number file
+        self.cusp_number = self.read_cusp_run_number().get("cusp_run", 0)
 
         # Title Label
         ttk.Label(root, text="Hodoscope Run Control", font=self.title_font).grid(row=0, column=0, columnspan=6, sticky="", padx=20, pady=20)
@@ -100,9 +102,11 @@ class DAQControllerApp:
 
         # Auto run checkbox
         self.auto_run_var = ttk.BooleanVar()
-        self.auto_run_checkbox = ttk.Checkbutton(root, text=" ", variable=self.auto_run_var, command=self.toggle_auto_run, bootstyle="success-round-toggle", state="disabled")
+        self.auto_run_checkbox = ttk.Checkbutton(root, text=" ", variable=self.auto_run_var, 
+                                                 command=self.toggle_auto_run, bootstyle="success-round-toggle", 
+                                                 state="disabled")
         # self.auto_run_checkbox.configure(style="CustomToggle.TCheckbutton", bootstyle="success-round-toggle")
-        self.auto_run_checkbox.grid(row=2, column=0, sticky="ne", padx=40, pady=30)
+        self.auto_run_checkbox.grid(row=2, column=0, sticky="ne", padx=30, pady=20)
         self.auto_run_label = ttk.Label(root, text="Auto Run", font=self.label_font, bootstyle="secondary")
         self.auto_run_label.grid(row=2, column=0, sticky="n", padx=50, pady=20)
 
@@ -117,33 +121,42 @@ class DAQControllerApp:
 
         # Run progress bar
         self.run_progress_bar = ttk.Floodgauge(root, bootstyle="dark", maximum=self.run_duration_var.get(), value=0, text="Not Running", length = int(screen_width*0.75/4), mode="determinate", font=self.text_font)
-        self.run_progress_bar.grid(row=2, column=4, columnspan=2, sticky="nw", padx=20, pady=20)
+        self.run_progress_bar.grid(row=2, column=4, columnspan=2, sticky="nw", padx=20, pady=10)
 
 
         # Buttons
         self.button_width = 15
-        self.start_daq_button = ttk.Button(root, text="Start DAQ", command=self.start_daq, width=self.button_width, bootstyle="success")
+        self.start_daq_button = ttk.Button(root, text="Start DAQ", command=self.start_daq, 
+                                           width=self.button_width, bootstyle="success")
         self.start_daq_button.grid(row=1, column=0, sticky="", padx=20, pady=20)
 
-        self.stop_daq_button = ttk.Button(root, text="! Stop DAQ", command=self.stop_daq, width=self.button_width, bootstyle="danger", state="disabled")
+        self.stop_daq_button = ttk.Button(root, text="! Stop DAQ", command=self.stop_daq, 
+                                          width=self.button_width, bootstyle="danger", state="disabled")
         self.stop_daq_button.grid(row=1, column=5, sticky="e", padx=20, pady=20)
 
-        self.start_button = ttk.Button(root, text="Start Run", command=self.start_run, width=self.button_width, bootstyle="success", state="disabled")
+        self.start_button = ttk.Button(root, text="Start Run", command=self.start_run, 
+                                       width=self.button_width, bootstyle="success", state="disabled")
         self.start_button.grid(row=3, column=0, sticky="n", padx=20, pady=20)
 
-        self.stop_button = ttk.Button(root, text="Stop Run", command=self.stop_run, width=self.button_width, bootstyle="danger", state="disabled")
+        self.stop_button = ttk.Button(root, text="Stop Run", command=self.stop_run, 
+                                      width=self.button_width, bootstyle="danger", state="disabled")
         self.stop_button.grid(row=3, column=1, sticky="n", padx=20, pady=20)
 
-        self.pause_button = ttk.Button(root, text="Pause", command=self.pause_daq, width=self.button_width, bootstyle="warning", state="disabled")
+        self.pause_button = ttk.Button(root, text="Pause", command=self.pause_daq, 
+                                       width=self.button_width, bootstyle="warning", state="disabled")
+        
         self.pause_button.grid(row=3, column=2, sticky="n", padx=20, pady=20)
 
-        self.resume_button = ttk.Button(root, text="Resume", command=self.resume_daq, width=self.button_width, bootstyle="success", state="disabled")
+        self.resume_button = ttk.Button(root, text="Resume", command=self.resume_daq, 
+                                        width=self.button_width, bootstyle="success", state="disabled")
+        
         self.resume_button.grid(row=3, column=3, columnspan = 1, sticky="n", padx=20, pady=20)
 
         # Live analysis checkbox
         self.live_analysis_var = ttk.BooleanVar()
-        self.live_analysis_checkbox = ttk.Checkbutton(root, text=" ", variable=self.live_analysis_var, command=self.toggle_live_analysis, bootstyle="success-round-toggle", state="disabled")
-        self.live_analysis_checkbox.grid(row=4, column=0, sticky="ne", padx=40, pady=30)
+        self.live_analysis_checkbox = ttk.Checkbutton(root, text=" ", variable=self.live_analysis_var, 
+                                                      command=self.toggle_live_analysis, bootstyle="success-round-toggle", state="disabled")
+        self.live_analysis_checkbox.grid(row=4, column=0, sticky="ne", padx=30, pady=20)
         self.live_analysis_label = ttk.Label(root, text="Live Analysis", font=self.label_font, bootstyle="secondary")
         self.live_analysis_label.grid(row=4, column=0, sticky="n", padx=50, pady=20)
 
@@ -184,7 +197,6 @@ class DAQControllerApp:
         self.run_progress_bar["value"] = 0
         self.run_progress_bar["text"] = "Not Running"
 
-
     def pause_daq(self):
         self.send_command("pause")
         self.pause_button.config(state="disabled")
@@ -196,6 +208,12 @@ class DAQControllerApp:
         self.resume_button.config(state="disabled")
 
     def stop_daq(self):
+        if self.run_running:
+            self.send_command("stop")
+            self.run_running = False
+            self.run_progress_bar["value"] = 0
+            self.run_progress_bar["text"] = "Not Running"
+
         if self.daq_process:
             self.send_command("!")
             self.start_button.config(state="disabled")
@@ -209,10 +227,11 @@ class DAQControllerApp:
             self.daq_process = None
     
     def start_daq(self):
-        
         if self.daq_process is None or self.daq_process.poll() is not None:
             geometry = "120x24+600+1200"
-            self.daq_process = subprocess.Popen(["gnome-terminal",  f"--geometry={geometry}", "--title=DAQ Terminal", "--", "bash", "-c", "cd daq_control/build; ./hodo_daq; exec bash"])
+            self.daq_process = subprocess.Popen(["gnome-terminal",  f"--geometry={geometry}", 
+                                                 "--title=DAQ Terminal", "--", "bash", "-c", 
+                                                 "cd daq_control/build; gdb ./hodo_daq; exec bash"])
         self.start_button.config(state="normal")
         self.stop_button.config(state="normal")
         self.pause_button.config(state="normal")
@@ -249,13 +268,14 @@ class DAQControllerApp:
         # Schedule the next update in 5 seconds
         self.root.after(5000, self.update_run_number)
 
-
     def read_cusp_run_number(self):
         """Reads the CUSP run number file."""
         cusp = {}
         if os.path.exists(self.run_file):
             with open(self.run_file, "r") as f:
-                cusp["cusp_run"] = f.read().strip()
+                cusp["cusp_run"] = f.read()
+                self.console.write(f"CUSP number: {cusp["cusp_run"]}", "SUCCESS")
+                self.cusp_number = cusp["cusp_run"]
         else:
             self.console.write("CUSP number file could not be found!", "ERROR")
             cusp["cusp_run"] = 0
@@ -330,7 +350,6 @@ class DAQControllerApp:
         if self.live_analysis_var.get():
             self.live_analysis_enabled = True
             threading.Thread(target=self.live_analysis_monitor, daemon=True).start()
-
         else:
             self.live_analysis_enabled = False
 

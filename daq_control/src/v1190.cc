@@ -65,10 +65,10 @@ bool v1190::setupV1190(int tdcId){
 
     log->info("TDC {:d} is being set up", tdcId);
 
-    bool retVal = true;
+    int retVal = 0;
 
     int status;
-    int cr, ettt, al64, blt;
+    int cr, ettt, al64, blt, fifo;
     
 
     // perform board reset
@@ -87,34 +87,56 @@ bool v1190::setupV1190(int tdcId){
 
     ettt = V1190_EnableETTT(handle, vmeBaseAddress);
     // printf("  ETTT enabled             : 0x%08x \n", ettt ); 
-    log->debug("ETTT enabled             : {0:#x}", ettt );
+    log->debug("ETTT enabled             : {:#x}", ettt );
 
-    V1190SetBltEvtNr(0x0000, handle, vmeBaseAddress);
+    blt = V1190SetBltEvtNr(0x3f, handle, vmeBaseAddress);
     // printf("  BLT set                  : 0x%04x \n", blt );
-    log->debug("BLT set                  :{0:#x}", blt );
+    log->debug("BLT set                  : {:#x}", blt);
+
+    fifo = V1190_EnableFIFO(handle, vmeBaseAddress);
+    log->debug("FIFO enabled             : {:#x}", fifo );
+
+
+    // cr = V1190ReadControlRegister(handle, vmeBaseAddress);
+
+    // cr = v1190_EnableFifo(vme, vmeBaseAdress);
+    // printf("\n  Control register status (FIFO ON bit6): 0x%04x \n", cr );
+    // log->debug("Control register status (FIFO ON bit6): {0:#x}", cr);
+
 
     //////////////////////////////////////////////////////////////
 
-    unsigned short int almost_full_level = 512;  //Maximum nr of 32-bit words per BLT
+    unsigned short int almost_full_level = 4096; //512;  //Maximum nr of 32-bit words per BLT
     // 16383;  //Maximum nr of 32-bit words per BLT for 1000 Hz
     V1190SetAlmostFullLevel(almost_full_level, handle, vmeBaseAddress);
 
     code[0] = 0x0000;  // Trigger matching Flag
-    if ((status = V1190WriteOpcode(1, code, handle, vmeBaseAddress)) < 0) retVal = false;
+    retVal |= V1190WriteOpcode(1, code, handle, vmeBaseAddress);
+    if (retVal) {
+        log->error("Opcode 0x{:x} failed at TDC {}", code[0], tdcId);
+    }
 
     // all values in units of 25 ns (cycle length of the TDCs)
 
     code[0] = 0x1000;  // Width
     code[1] = 0x38; // 1400 ns
-    value = V1190WriteOpcode(2, code, handle, vmeBaseAddress);
+    retVal |= V1190WriteOpcode(2, code, handle, vmeBaseAddress);
+    if (retVal) {
+        log->error("Opcode 0x{:x} failed at TDC {}", code[0], tdcId);
+    }
 
     code[0] = 0x1100;  // Offset
     code[1] = 0xFFF0; //  -400ns
-    value = V1190WriteOpcode(2, code, handle, vmeBaseAddress);
-
+    retVal |= V1190WriteOpcode(2, code, handle, vmeBaseAddress);
+    if (retVal) {
+        log->error("Opcode 0x{:x} failed at TDC {}", code[0], tdcId);
+    }
 
     code[0] = 0x1400;  // Subtraction flag
-    value = V1190WriteOpcode(1, code, handle, vmeBaseAddress); // reference point: beginning of trigger window
+    retVal |= V1190WriteOpcode(1, code, handle, vmeBaseAddress); // reference point: beginning of trigger window
+    if (retVal) {
+        log->error("Opcode 0x{:x} failed at TDC {}", code[0], tdcId);
+    }
     
     // code[0] = 0x1500;  // Disable subtraction flag
     // value = V1190WriteOpcode(1, code); // reference point: last bunch reset
@@ -122,41 +144,62 @@ bool v1190::setupV1190(int tdcId){
     // Extra search and reject margin = 0 => only events in trigger window recorded
     code[0] = 0x1200;  // Extra search margin
     code[1] = 0x0;  // no extra search margin
-    value = V1190WriteOpcode(2, code, handle, vmeBaseAddress);
+    retVal |= V1190WriteOpcode(2, code, handle, vmeBaseAddress);
+    if (retVal) {
+        log->error("Opcode 0x{:x} failed at TDC {}", code[0], tdcId);
+    }
 
     code[0] = 0x1300;  // reject margin
     code[1] = 0x0;  // no reject margin
-    value = V1190WriteOpcode(2, code, handle, vmeBaseAddress);
+    retVal |= V1190WriteOpcode(2, code, handle, vmeBaseAddress);
+    if (retVal) {
+        log->error("Opcode 0x{:x} failed at TDC {}", code[0], tdcId);
+    }
 
     code[0] = 0x2200;  // Edge Detection
     code[1] = 0x3;  // trailing + leading edge
-    value = V1190WriteOpcode(2, code, handle, vmeBaseAddress);
+    retVal |= V1190WriteOpcode(2, code, handle, vmeBaseAddress);
+    if (retVal) {
+        log->error("Opcode 0x{:x} failed at TDC {}", code[0], tdcId);
+    }
 
     // Resolution 100ps
     code[0] = 0x2400;
     code[1] = 0x0002;
-    value = V1190WriteOpcode(2, code, handle, vmeBaseAddress);
+    retVal |= V1190WriteOpcode(2, code, handle, vmeBaseAddress);
+    if (retVal) {
+        log->error("Opcode 0x{:x} failed at TDC {}", code[0], tdcId);
+    }
 
     code[0] = 0x3000;  // TDC Header/Trailer enable
     code[1] = 0x1;
-    value = V1190WriteOpcode(2, code, handle, vmeBaseAddress);
+    retVal |= V1190WriteOpcode(2, code, handle, vmeBaseAddress);
+    if (retVal) {
+        log->error("Opcode 0x{:x} failed at TDC {}", code[0], tdcId);
+    }
 
     code[0] = 0x3500;  // TDC Error enable
     // code[0] = 0x3600;  // TDC Error disable
-    code[1] = 0.1;
-    value = V1190WriteOpcode(2, code, handle, vmeBaseAddress);
+    code[1] = 0x1;
+    retVal |= V1190WriteOpcode(2, code, handle, vmeBaseAddress);
+    if (retVal) {
+        log->error("Opcode 0x{:x} failed at TDC {}", code[0], tdcId);
+    }
 
-    // code[0] = 0x4200;  // enable all channels
+    code[0] = 0x4200;  // enable all channels
     // code[1] = 0x1;
     // value = V1190WriteOpcode(2, code, handle, vmeBaseAddress);
 
-    code[0] = 0x4300;  // disable all channels
+    //code[0] = 0x4300;  // disable all channels
     code[1] = 0x1;
-    value = V1190WriteOpcode(2, code, handle, vmeBaseAddress);
+    retVal |= V1190WriteOpcode(2, code, handle, vmeBaseAddress);
+    if (retVal) {
+        log->error("Opcode 0x{:x} failed at TDC {}", code[0], tdcId);
+    }
 
     log->info("TDC {:d} was set up", tdcId);
 
-    return retVal;
+    return retVal == 0;
 }
 
 
@@ -233,8 +276,8 @@ unsigned int v1190::BLTRead(DataBank& dataBank) {
 
     int bytesRead = 0; 
 
-    unsigned int ret = V1190BLTRead(buff, BufferSize, bytesRead, handle, vmeBaseAddress);
-
+    unsigned int ret = V1190BLTRead(buff, BufferSize, &bytesRead, handle, vmeBaseAddress);
+    // log->debug("{:d} bytes read", bytesRead);
     if (ret != cvSuccess && ret != cvBusError) {
         log->error("BLT Readout Error");
         // std::cerr << "BLT Readout Error" << std::endl;
@@ -252,6 +295,7 @@ unsigned int v1190::BLTRead(DataBank& dataBank) {
 
         // Check for Global Header (start of event)
         if (IS_GLOBAL_HEADER(word)) {  
+            log->debug("word: {}", word);
             if (!currentEvent.data.empty()) {
                 dataBank.addEvent(currentEvent);            //  Add completed event
                 currentEvent.data.clear();

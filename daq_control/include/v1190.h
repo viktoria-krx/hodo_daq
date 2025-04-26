@@ -70,7 +70,8 @@ extern "C" {
 #define DATA_MEAS_25(r)        ( (r)      & 0x1FFFFF)
 #define DATA_TDC_WORD_CNT(r)   (((r)>>4)  & 0xFFFF)
 
-#define ETTT_ENABLE_MASK 0x0A00
+#define ETTT_ENABLE_MASK 0x0200
+#define FIFO_ENABLE_MASK 0x0100
 
 unsigned short V1190ReadRegister(unsigned short RegAddr, int handle, int BaseAddress);
 void V1190WriteRegister(unsigned short RegAddr, unsigned short RegData, int handle, int BaseAddress);
@@ -79,7 +80,7 @@ void V1190SoftClear(unsigned short RegData, int handle, int BaseAddress);
 void V1190SoftReset(unsigned short RegData, int handle, int BaseAddress);
 unsigned short V1190ReadControlRegister(int handle, int BaseAddress);
 unsigned short V1190WriteControlRegister(int handle, int BaseAddress);
-void V1190SetBltEvtNr(unsigned short RegData, int handle, int BaseAddress);
+int V1190SetBltEvtNr(unsigned short RegData, int handle, int BaseAddress);
 void V1190SetAlmostFullLevel(unsigned short RegData, int handle, int BaseAddress);
 void V1190WriteDummyValue(unsigned short RegData, int handle, int BaseAddress);
 unsigned short V1190ReadDummyValue(int handle, int BaseAddress);
@@ -90,8 +91,9 @@ unsigned short V1190AlmostFull(int handle, int BaseAddress);
 int V1190EventStored(int handle, int BaseAddress);
 unsigned short V1190GetFIFOWordCount(int handle, int BaseAddress);
 unsigned int V1190GetEventCounter(int handle, int BaseAddress);
-unsigned int V1190BLTRead(unsigned int *buffer, int BufferSize, int nb, int handle, int BaseAddress);
+unsigned int V1190BLTRead(unsigned int *buffer, int BufferSize, int* nb, int handle, int BaseAddress);
 int V1190_EnableETTT(int handle, int BaseAddress);
+int V1190_EnableFIFO(int handle, int BaseAddress);
 
 
 #endif // V1190_BASIC_H

@@ -12,7 +12,7 @@ public:
     DataBank(const char* bankName);
 
     void addEvent(const Event& event);
-    std::vector<uint8_t> serialize() const;
+    std::vector<uint32_t> serialize() const;
     void clear();
 
     const char* getBankName() const;
@@ -29,7 +29,7 @@ public:
     Block(uint32_t id);
     ~Block();
     void addDataBank(const DataBank& bank);
-    std::vector<uint8_t> serialize() const;
+    std::vector<uint32_t> serialize() const;
     void clear();
     const std::vector<DataBank>& getDataBanks() const;
 private:

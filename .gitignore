@@ -5,3 +5,4 @@
 *.csv
 */logs/*
 */output/*
+CUSP/*

@@ -26,6 +26,10 @@ void TCPServer::start() {
 }
 
 void TCPServer::stop() {
+    auto log = Logger::getLogger();
+
+    log->debug("TCPServer::stop() was called");
+
     running = false;
     if (serverThread.joinable()) {
         serverThread.join();

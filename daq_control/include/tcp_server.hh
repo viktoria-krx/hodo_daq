@@ -13,6 +13,11 @@ public:
     void start();
     void stop();
 
+    bool isRunning() const {
+        return running;
+    }
+    
+
 private:
     void run();  // Main loop for handling client connections
 

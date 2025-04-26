@@ -74,19 +74,35 @@ unsigned short V1190ReadControlRegister(int handle, int BaseAddress)
 // 	VMEerror |= CAENVME_ReadCycle(handle, BaseAddress + CONTROL, &reg, cvA32_U_DATA, cvD16);
 // 	return reg;
 // }
+int V1190_EnableFIFO(int handle, int BaseAddress) {
+    int cr_fifo; 
+    cr_fifo = V1190ReadControlRegister(handle, BaseAddress);
+
+    int controlValue = cr_fifo | FIFO_ENABLE_MASK; 
+
+    VMEerror |= CAENVME_WriteCycle(handle, BaseAddress + CONTROL, &controlValue, cvA32_U_DATA, cvD16);
+
+    return controlValue; 
+
+}
 
 int V1190_EnableETTT(int handle, int BaseAddress) {
-    uint16_t controlValue = ETTT_ENABLE_MASK; // Set bits 9 and 11
+    int cr_ettt; 
+    cr_ettt = V1190ReadControlRegister(handle, BaseAddress);
+
+    int controlValue = cr_ettt | ETTT_ENABLE_MASK; // Set bits 9 and 11
 
     VMEerror |= CAENVME_WriteCycle(handle, BaseAddress + CONTROL, 
                                 &controlValue, cvA32_U_DATA, cvD16);
-    return 0;  // Success
+    return controlValue;  // Success
 }
 
-void V1190SetBltEvtNr(unsigned short RegData, int handle, int BaseAddress)
+int V1190SetBltEvtNr(unsigned short RegData, int handle, int BaseAddress)
 {
     unsigned short reg = RegData;
     VMEerror |= CAENVME_WriteCycle(handle, BaseAddress + BLT_EVNUM, &reg, cvA32_U_DATA, cvD16);
+
+    return VMEerror;
 }
 
 void V1190SetAlmostFullLevel(unsigned short RegData, int handle, int BaseAddress)
@@ -156,7 +172,7 @@ unsigned int V1190GetEventCounter(int handle, int BaseAddress)
 }
 
 
-unsigned int V1190BLTRead(unsigned int *buffer, int BufferSize, int nb, int handle, int BaseAddress)
+unsigned int V1190BLTRead(unsigned int *buffer, int BufferSize, int* nb, int handle, int BaseAddress)
 {
     unsigned int ret = 0;
     ret = CAENVME_FIFOBLTReadCycle(handle, BaseAddress, (unsigned char*)buffer, BufferSize, cvA32_U_MBLT, cvD64, &nb);

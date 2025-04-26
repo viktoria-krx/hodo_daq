@@ -18,7 +18,7 @@
 #include <iomanip>
 #include <map>
 
-#define NUM_TDCS 1 //4
+#define NUM_TDCS 4
 #define NUM_FPGAS 1
 
 v1190 *tdcs[NUM_TDCS];
@@ -29,7 +29,7 @@ int V2495Status[NUM_FPGAS];
 // Define all base addresses:
 static const unsigned int vmeBaseAddress = 0x32100000;
 char* vmeIPAddress = "192.168.1.254\0";
-static const unsigned int TDCbaseAddresses[] = {0x90900000}; //, 0x90910000, 0x90920000, 0x90930000};
+static const unsigned int TDCbaseAddresses[] = {0x90900000, 0x90910000, 0x90920000, 0x90930000};
 const char* FPGAbaseAddress = "32100000";
 // static const unsigned int FPGAserialNumber = 28;
 
@@ -50,10 +50,11 @@ std::vector<std::thread> readoutThreads;
 std::thread pollingThread;
 
 // Thread safe writing
-std::queue<std::vector<uint8_t>> blockQueue;
+std::queue<std::vector<uint32_t>> blockQueue;
 std::mutex blockQueueMutex;
 std::condition_variable blockQueueCond;
 bool stopWriter = false;
+std::thread fileWriter;
 
 uint32_t blockID = 0; // ID of each BLT block
 
@@ -144,7 +145,6 @@ char* getRunFilename(int runNumber, const std::string& path, const std::string& 
  * @param tdc Reference to the TDC from which to read data.
  * @param bankName The name to be assigned to each `DataBank` created.
  */
-
 void startReadoutThread(v1190& tdc, std::string bankName) {
     readoutThreads.emplace_back([&tdc, bankName] () {
         while(!stopReadout) {
@@ -170,7 +170,7 @@ void startReadoutThread(v1190& tdc, std::string bankName) {
  *
  * @param data The block of data to write to the file.
  */
-void writeBinFile(const std::vector<uint8_t>& data) {
+void writeBinFile(const std::vector<uint32_t>& data) {
 
     int runNumber = std::stoi(config["run_number"]);
     // Get filename as char*
@@ -194,11 +194,17 @@ void writeBinFile(const std::vector<uint8_t>& data) {
  *       using the `stop_run` function.
  */
 void fileWriterThread() {
-    while(!stopReadout) {
+    auto log = Logger::getLogger();
+    while(true) {
+        log->debug("fileWriterThread started");
         std::unique_lock<std::mutex> lock(blockQueueMutex);
-        blockQueueCond.wait(lock, [] { return !blockQueue.empty() || stopReadout; });
+        blockQueueCond.wait(lock, [] { return !blockQueue.empty() || stopWriter; });
 
-        std::vector<uint8_t> binaryData = std::move(blockQueue.front());
+        if (blockQueue.empty() && stopWriter) {
+            break;
+        }
+
+        std::vector<uint32_t> binaryData = std::move(blockQueue.front());
         blockQueue.pop();
         lock.unlock();
 
@@ -246,7 +252,7 @@ void fileWriterThread() {
       DataBank CUSP("CUSP");        // Adding the current ms timestamp to the CUSP bank, since this won't change anything
       auto now = std::chrono::system_clock::now();
       auto now_ms = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()).count();
-      std::ifstream cuspFile("/path/to/cusp.txt");
+      std::ifstream cuspFile("/home/hododaq/hodo_daq/CUSP/Number.txt");
       if (cuspFile) {
           int cuspValue;
           cuspFile >> cuspValue;
@@ -256,7 +262,7 @@ void fileWriterThread() {
           CUSP.addEvent(eventCUSPrun);
       }
 
-      std::vector<uint8_t> binaryData = block.serialize();
+      std::vector<uint32_t> binaryData = block.serialize();
       {
           std::lock_guard<std::mutex> blockLock(blockQueueMutex);
           blockQueue.push(std::move(binaryData));
@@ -280,31 +286,45 @@ void fileWriterThread() {
  */
 
 void polling() {
+    auto log = Logger::getLogger();
+    log->debug("Polling thread started");
 
-    bool isfull = false;
-    std::vector<bool> tdcReading(NUM_TDCS, false);
+    try {
+        bool isfull = false;
+        std::vector<bool> tdcReading(NUM_TDCS, false);
 
-    while (!stopReadout) {
+        while (!stopReadout) {
+            isfull = false;
 
-        for (auto tdc : tdcs) {
-            isfull |= tdc->almostFull();
-        }
-
-        if (isfull) {
-
-            for (int i = 0; i < NUM_TDCS; i++){
-                if (!tdcReading[i]) {
-                    startReadoutThread(*tdcs[i], "TDC"+std::to_string(i));
-                    tdcReading[i] = true;
-                }
-              
+            for (auto tdc : tdcs) {
+                isfull |= tdc->almostFull();
             }
 
+            if (isfull) {
+
+                for (int i = 0; i < NUM_TDCS; i++){
+                    if (!tdcReading[i]) {
+                        log->debug("Starting readout thread {:d}", i);
+                        startReadoutThread(*tdcs[i], "TDC"+std::to_string(i));
+                        tdcReading[i] = true;
+                        log->debug("Readout thread started {:d}", i);
+                    }
+                
+                }
+                isfull = false;
+            }
+            
+            std::this_thread::sleep_for(std::chrono::milliseconds(10));  // Small delay to avoid overloading CPU
+
         }
-
-        std::this_thread::sleep_for(std::chrono::milliseconds(10));  // Small delay to avoid overloading CPU
-
+    } catch (const std::exception& ex) {
+        log->error("Exception in polling thread: {}", ex.what());
+    } catch (...) {
+        log->error("Unknown exception in polling thread!");
     }
+
+
+
 }
 
 
@@ -354,12 +374,19 @@ bool start_run() {
     //   }
     // }
 
-    stopReadout = false;  
-    pollingThread = std::thread(polling);
-
+    try {
+        stopReadout = false;
+        stopWriter = false;
+        pollingThread = std::thread(polling);
+        fileWriter = std::thread(fileWriterThread);
+    } catch (const std::exception& e) {
+        log->error("Failed to create polling thread: {}", e.what());
+        return false;  // Thread creation failed
+    }
 
     vme.stopVeto();
     log->info("Data acquisition started!");
+    
     // std::cout << "Data acquisition started!" << std::endl;
     return true;
 }
@@ -443,7 +470,7 @@ void stop_run() {
             DataBank CUSP("CUSP");        
             auto now = std::chrono::system_clock::now();
             auto now_ms = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()).count();
-            std::ifstream cuspFile("/path/to/cusp.txt");
+            std::ifstream cuspFile("/home/hododaq/hodo_daq/CUSP/Number.txt");
             if (cuspFile) {
                 int cuspValue;
                 cuspFile >> cuspValue;
@@ -455,7 +482,7 @@ void stop_run() {
             finalBlock.addDataBank(CUSP);
 
             // Serialize and push to file writer queue
-            std::vector<uint8_t> binaryData = finalBlock.serialize();
+            std::vector<uint32_t> binaryData = finalBlock.serialize();
             {
                 std::lock_guard<std::mutex> blockLock(blockQueueMutex);
                 blockQueue.push(std::move(binaryData));
@@ -467,7 +494,9 @@ void stop_run() {
 
         stopWriter = true;
         blockQueueCond.notify_all();
-        fileWriterThread();
+        if (fileWriter.joinable()) {
+            fileWriter.join();
+        }
 
         // std::cout << "Data acquisition stopped!" << std::endl;
         log->info("Data acquisition stopped");
@@ -549,6 +578,7 @@ bool hardware_inits() {
     }
 
     for(int i=0; i<NUM_TDCS; i++){
+        V1190Status[i] = true;
         // V1190Status[i] = tdcs[i]->checkModuleResponse(); // this is already called in the init function
         V1190Status[i] &= tdcs[i]->init(i);
 
@@ -619,7 +649,10 @@ int main() {
     int runNumber = std::stoi(config["run_number"]);
     log->info("Current run number: {0:d}", runNumber);
 
-
+    while (server.isRunning()){
+        std::this_thread::sleep_for(std::chrono::seconds(1));
+    }
+    
     
     return 0;
 }
