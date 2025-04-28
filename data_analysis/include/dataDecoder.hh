@@ -62,8 +62,8 @@ public:
     
     void processBlock(const std::vector<uint32_t>& rawData);  // Decode and store data
     void writeTree();  // Write to ROOT file
-    bool fillData(int channel, int edge, int32_t time, TDCEvent &event);
-    void processEvent(const std::string& bankName, const std::vector<uint32_t>& data);
+    bool fillData(int channel, int rawchannel, int edge, int32_t time, TDCEvent &event);
+    void processEvent(const char bankName[4], const std::vector<uint32_t>& data);
     constexpr int getChannel(int ch);
     void flush();
 

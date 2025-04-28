@@ -6,12 +6,15 @@
 #include <zmq.hpp>
 #include <sys/stat.h>  // For file size checking
 #include <cstdlib>
+#include <filesystem>
 #include "logger.hh"
 #include "fileReader.hh"
 #include "dataDecoder.hh"
 #include "dataFilter.hh"
 
-#define CHECK_INTERVAL_MS 500   // Check every 500ms
+#define CHECK_INTERVAL_MS 1000   // Check every 500ms
+
+namespace fs = std::filesystem;
 
 long get_file_size(const std::string& filename) {
     struct stat st;
@@ -63,7 +66,8 @@ std::string getBinFilename(int runNumber) {
     std::map<std::string, std::string> config = loadConfig();
 
     std::ostringstream filename;
-    filename << config["data_path"] << "/"
+    filename << config["daq_path"] 
+             << config["data_path"] << "/"
              << config["file_prefix"]
              << std::setw(6) << std::setfill('0') << runNumber
              << ".bin";
@@ -75,7 +79,8 @@ std::string getRootFilename(int runNumber) {
     std::map<std::string, std::string> config = loadConfig();
 
     std::ostringstream filename;
-    filename << config["raw_path"] << "/"
+    filename << config["daq_path"] 
+             << config["raw_path"] << "/"
              << config["raw_prefix"]
              << std::setw(6) << std::setfill('0') << runNumber
              << ".root";
@@ -87,7 +92,8 @@ std::string getDataFilename(int runNumber) {
     std::map<std::string, std::string> config = loadConfig();
 
     std::ostringstream filename;
-    filename << config["ana_path"] << "/"
+    filename << config["daq_path"] 
+             << config["ana_path"] << "/"
              << config["ana_prefix"]
              << std::setw(6) << std::setfill('0') << runNumber
              << ".root";
@@ -95,21 +101,6 @@ std::string getDataFilename(int runNumber) {
     return filename.str(); 
 }
 
-// void analyze_data(std::vector<uint32_t>& data, zmq::socket_t& socket) {
-//     // Example: Compute an average value from the new data
-//     if (data.empty()) return;
-
-//     float sum = 0;
-//     for (uint32_t value : data) {
-//         sum += value;
-//     }
-//     float avg = sum / data.size();
-
-//     // Send analysis results over ZeroMQ
-//     zmq::message_t result_msg(50);
-//     snprintf((char*)result_msg.data(), 50, "%ld %f", time(nullptr), avg);
-//     socket.send(result_msg, zmq::send_flags::none);
-// }
 
 void monitor_file(int runNumber) {
     auto log = Logger::getLogger();
@@ -151,6 +142,37 @@ void monitor_file(int runNumber) {
     decoder.flush();
 }
 
+void runOfflineAnalysis(int runNumber) {
+    auto log = Logger::getLogger();
+    std::string binFile = getBinFilename(runNumber);
+
+    FileReader reader(binFile);
+    if (!reader.isOpen()) {
+        log->error("Could not open file {0}", binFile);
+        return;
+    }
+
+    DataDecoder decoder(getRootFilename(runNumber));
+
+    std::ifstream file(binFile, std::ios::binary);
+    Block block;
+    long last_pos = 0;
+    while (reader.readNextBlock(block, last_pos)) {
+        for (auto& bank : block.banks) {
+            for (auto& event : bank.events) {
+                decoder.processEvent(bank.bankName, event.data);
+            }   
+        }
+        last_pos = reader.currentPos;
+    }
+
+    decoder.writeTree();
+    decoder.flush();
+
+}
+
+void runLiveAnalysis(int runNumber) {}
+
 int main(int argc, char* argv[]) {
 
     Logger::init();
@@ -159,16 +181,38 @@ int main(int argc, char* argv[]) {
     log->info("Hiya!");
     log->debug("Oy!");
 
+    bool liveMode = false;
+
 
     if (argc < 2) {
         log->error("Usage: ./hodo_analysis <run_number>");
         return 1;
     }
 
-    int runNumber = std::stoi(argv[1]);
+    int argIndex = 1;
 
-    monitor_file(runNumber);
+    if (std::string(argv[1]) == "-l") {
+        liveMode = true;
+        argIndex++;
+    }
 
+    if (argIndex >= argc) {
+        log->error("Error: Missing filename.");
+        return 1;
+    }
+
+    int runNumber = std::stoi(argv[argIndex]);
+
+    // Info print
+    log->info("Running in {} mode.", (liveMode ? "LIVE" : "OFFLINE"));
+    log->info("Analyzing run: {:d}", runNumber);
+
+    // Now you can call your main logic:
+    if (liveMode) {
+        runLiveAnalysis(runNumber);
+    } else {
+        runOfflineAnalysis(runNumber);
+    }
 
     return 0;
 }

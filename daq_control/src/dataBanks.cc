@@ -37,7 +37,7 @@ std::vector<uint32_t> DataBank::serialize() const {
     std::vector<uint32_t> buffer;
 
     // Write Bank Name (4 bytes)
-    uint32_t packedBankName = (bankName[0] << 24) | (bankName[1] << 16) | (bankName[2] << 8) | (bankName[3]);
+    uint32_t packedBankName = (bankName[3] << 24) | (bankName[2] << 16) | (bankName[1] << 8) | (bankName[0]);
     // buffer.insert(buffer.end(), bankName, bankName + 4);
     buffer.push_back(packedBankName);
 

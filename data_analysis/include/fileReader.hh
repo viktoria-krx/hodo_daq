@@ -55,11 +55,13 @@ public:
     bool readNextBlock(Block& block, long startPos);  // Read the next block of data
     bool isOpen() const;
     long getFileSize();
+    long currentPos;
 
 private:
     std::ifstream file;
     bool readDataBank(DataBank& bank);
     const std::string& filename = "";
+    
 };
 
 #endif

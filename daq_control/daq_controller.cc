@@ -248,7 +248,7 @@ void fileWriterThread() {
       lock.unlock();
 
       // DataBank GATE("GATE");
-      // fpgas[0]->readFIFO(GATE, 0x0000);   // This function will only be properly written once I have a working Gate Register on the V2495
+      // fpgas[0]->readFIFO(GATE, SCI_REG_List_0_FIFOADDRESS);   // This function will only be properly written once I have a working Gate Register on the V2495
       // block.addDataBank(GATE);
 
       DataBank CUSP("CUSP");        // Adding the current ms timestamp to the CUSP bank, since this won't change anything
@@ -568,10 +568,12 @@ bool hardware_inits() {
 
     auto log = Logger::getLogger();
     bool success = true;
-
+    log->debug("Starting VME initialization...");
     if (handle == -1) {
         vme.init();
+        log->debug("VME init done");
         handle = vme.getHandle();
+        log->debug("Got VME handle: {0:d}", handle);
         vme.startVeto();
 
     }
@@ -595,27 +597,24 @@ bool hardware_inits() {
         }
     }
 
-    // Connect to FPGA:
-    // ConnType 4 : CAEN_PLU_CONNECT_VME_V4718_ETH
-    // ConnType 5 : CAEN_PLU_CONNECT_VME_V4718_USB
-    // ConnType 6 : CAEN_PLU_CONNECT_VME_A4818
-
-    // for(int i=0; i<NUM_FPGAS; i++){
-    //     fpgas[i] = new v2495(4, (char*)FPGAipAddress, FPGAserialNumber, (char*)FPGAbaseAddress, handle);
-    // }
-
-    // for(int i=0; i<NUM_FPGAS; i++){
-    //     V2495Status[i] = fpgas[i]->init(i); // Opens connection
-
-    //     if (V2495Status[i]) {
-    //         log->info("V2495 module {0:d} is online", i);
-    //     } else {
-    //       log->info("V2495 module {0:d} is NOT online!", i);
-    //       success = false;
-    //     }
 
 
-    // }
+    for(int i=0; i<NUM_FPGAS; i++){
+        fpgas[i] = new v2495((char*)FPGAbaseAddress, handle);
+    }
+
+    for(int i=0; i<NUM_FPGAS; i++){
+        V2495Status[i] = fpgas[i]->init(i); // Opens connection
+
+        if (V2495Status[i]) {
+            log->info("V2495 module {0:d} is online", i);
+        } else {
+          log->info("V2495 module {0:d} is NOT online!", i);
+          success = false;
+        }
+
+
+    }
 
     return success;
 }
@@ -641,6 +640,7 @@ int main() {
     TCPServer server(12345);  // Choose a port
     server.start();
 
+    all_init = false;
 
     while (!hardware_inits()) {
         log->warn("Hardware initialization failed. Retrying...");

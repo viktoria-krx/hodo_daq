@@ -29,8 +29,18 @@ long FileReader::getFileSize() {
 
 // Read a single DataBank
 bool FileReader::readDataBank(DataBank& bank) {
+
+    uint32_t packedBankName;
     // Read Bank Name (4 bytes)
-    if (!file.read(bank.bankName, 4)) return false;
+    // if (!file.read(bank.bankName, 4)) return false;
+    if (!file.read(reinterpret_cast<char*>(&packedBankName), sizeof(packedBankName))) return false;
+
+    // Unpack the bank name from the 32-bit value
+    bank.bankName[0] = packedBankName & 0xFF;           // First byte (least significant byte)
+    bank.bankName[1] = (packedBankName >> 8) & 0xFF;    // Second byte
+    bank.bankName[2] = (packedBankName >> 16) & 0xFF;   // Third byte
+    bank.bankName[3] = (packedBankName >> 24) & 0xFF;   // Fourth byte (most significant byte)
+
 
     // Read Number of Events (4 bytes)
     uint32_t eventCount;
@@ -76,5 +86,8 @@ bool FileReader::readNextBlock(Block& block, long startPos) {
         if (!readDataBank(bank)) return false;
         block.banks.push_back(bank);
     }
+
+    currentPos = static_cast<long>(file.tellg());
+
     return true;
 }

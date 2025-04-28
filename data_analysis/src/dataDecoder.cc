@@ -110,12 +110,13 @@ enum DetectorType {
     TILE_OT, 
     BGO, 
     TRG, 
+    GATE,
     UNKNOWN
 };
 
 std::map<int, DetectorType> channelMap = {
-    {-50, HODO_IUs}, 
-    {-90, TILE_IT}, 
+    {-90, TILE_IT},
+    {-50, HODO_IUs},
     {-1, HODO_IDs},
     {1, HODO_ODs}, 
     {50, HODO_OUs}, 
@@ -127,13 +128,29 @@ std::map<int, DetectorType> channelMap = {
 
 
 // Function to classify channels
+// DetectorType getDetectorType(int channel) {
+//     for (const auto& [threshold, type] : channelMap) {
+//         if (channel >= threshold) {
+//             return type;
+//         }
+//     }
+//     return UNKNOWN;
+// }
+
 DetectorType getDetectorType(int channel) {
-    for (const auto& [threshold, type] : channelMap) {
-        if (channel >= threshold) {
-            return type;
-        }
+    if (channel < 0) {
+        if (channel > -50) return HODO_IDs;   // Inner Downstream Bars
+        else if (channel > -90) return HODO_IUs;  // Inner Upstream Bars
+        else return TILE_IT;   // Inner Tiles
+    } else {
+        if (channel >= 1 && channel < 50) return HODO_ODs;  // Outer Downstream Bars
+        else if (channel >= 50 && channel < 90) return HODO_OUs;  // Outer Upstream Bars
+        else if (channel >= 100 && channel < 250) return TILE_OT;  // Outer Tiles
+        else if (channel >= 300 && channel < 400) return BGO;  // BGO
+        else if (channel >= 500 && channel < 600) return TRG;  // Trigger
+        else if (channel == 600) return GATE;  // Gate
+        return UNKNOWN;  // For any unknown channels
     }
-    return UNKNOWN;
 }
 
 
@@ -166,7 +183,11 @@ void assignTime(TDCEvent &event, int channel, int edge, int32_t time, DetectorTy
 
 
 // Optimized fillData function
-bool DataDecoder::fillData(int channel, int edge, int32_t time, TDCEvent &event) {
+bool DataDecoder::fillData(int channel, int rawchannel, int edge, int32_t time, TDCEvent &event) {
+    auto log = Logger::getLogger();
+
+    DetectorType type = getDetectorType(channel);
+
     if (channel == 32 || channel == -32) { channel = 0; }  // Normalize channel 32
 
     // Convert negative channels
@@ -181,20 +202,23 @@ bool DataDecoder::fillData(int channel, int edge, int32_t time, TDCEvent &event)
         else if (channel >= 500 && channel < 600) channel -= 500; // Trigger
     }
 
-    DetectorType type = getDetectorType(channel);
+
+    log->debug("Channel: {0:d} | Edge: {1:d} | Time: {2:d} | Type: {3:d}", channel, edge, time, (int)type);
     assignTime(event, channel, edge, time, type);
     return true;
 }
 
 
-void DataDecoder::processEvent(const std::string& bankName, const std::vector<uint32_t>& data) {
+void DataDecoder::processEvent(const char bankName[4], const std::vector<uint32_t>& data) {
 
     auto log = Logger::getLogger();
 
-    log->debug("Processing Bank: {0} | Data Size: {1:d}", bankName, data.size());
+    std::string bankN(bankName, 4);
 
-    if (bankName.find("TDC") == 0) {
-        tdcID = bankName.back() - '0';
+    log->debug("Processing Bank: {0} | Data Size: {1:d}", bankN, data.size());
+
+    if (bankN.find("TDC") == 0) {
+        tdcID = bankN.back() - '0';
         for (size_t i = 0; i < data.size(); i++) {
             uint32_t word = data[i];
 
@@ -204,21 +228,24 @@ void DataDecoder::processEvent(const std::string& bankName, const std::vector<ui
                 le_te = DATA_EDGE(word);
 
                 ch = rawch + tdcID * 128;
+                rawch = ch;
                 ch = getChannel(ch);
 
                 data_time = DATA_MEAS(word);
 
-                fillData(ch, le_te, data_time, event);
+                fillData(ch, rawch, le_te, data_time, event);
 
                 event.tdcTimeTag = DATA_MEAS(word);
 
-                log->debug("[TDC Hit] Bank: {0} | Ch: {1:d} | Time: {2:d}", bankName, ch, event.tdcTimeTag);
+                log->debug("[TDC Hit] Bank: {0} | Raw Ch: {1:d} | TDC ID: {2} | Ch: {3:d} | Time: {4:d}", bankN, rawch, tdcID, ch, event.tdcTimeTag);
                 // std::cout << "[TDC Hit] Bank: " << bankName << " Ch: " << ch << " Time: " << event.tdcTimeTag << std::endl;
                 // tree->Fill();
             } else if (IS_TDC_HEADER(word)) {
-                log->debug("[TDC Header] Bank: {}", bankName);
+                log->debug("[TDC Header] Bank: {}", bankN);
+            } else if (IS_TRIGGER_TIME_TAG(word)) {
+                log->debug("[TDC ETTT] Bank: {}", bankN);
             } else if (IS_TDC_TRAILER(word)) {
-                log->debug("[TDC Trailer] Bank: {}", bankName);
+                log->debug("[TDC Trailer] Bank: {}", bankN);
             } else if (IS_GLOBAL_HEADER(word)) {
                 log->debug("[Global Header]");
             } else if (IS_GLOBAL_TRAILER(word)) {
@@ -230,20 +257,20 @@ void DataDecoder::processEvent(const std::string& bankName, const std::vector<ui
                 log->warn("[Unknown Data] Word: {0:b}", word);
             }
         }
-    } else if (bankName == "GATE") {
+    } else if (bankN == "GATE") {
         if (!data.empty()) {
             gateTime = data[0];
             log->debug("[GATE Event] Time: {0:d}", gateTime);
             // tree->Fill();
         }
-    } else if (bankName == "CUSP") {
+    } else if (bankN == "CUSP") {
         if (!data.empty()) {
             cuspValue = data[0];
             log->debug("[CUSP Event] Value: {0:d}", cuspValue);
             // tree->Fill();
         }
     } else {
-        log->warn("Unknown Bank: {0}", bankName);
+        log->warn("Unknown Bank: {0}", bankN);
     }
 }
 
