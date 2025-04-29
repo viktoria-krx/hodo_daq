@@ -158,6 +158,7 @@ void startReadoutThread(v1190& tdc, std::string bankName) {
                 dataAvailable.notify_one();
             }
             std::this_thread::sleep_for(std::chrono::milliseconds(10));
+
         }
     });
 }
@@ -231,48 +232,53 @@ void fileWriterThread() {
 
   void processEvents() {
     while(!stopReadout) {
-      std::unique_lock<std::mutex> lock(bankQueueMutex);
-      dataAvailable.wait(lock, [] {return !bankQueue.empty() || stopReadout; });
 
-      if (bankQueue.empty() && stopReadout) break;
+        Block block(blockID);
 
-      Block block(blockID);
+        DataBank CUSP("CUSP");        // Adding the current ms timestamp to the CUSP bank, since this won't change anything
+        auto now = std::chrono::system_clock::now();
+        uint32_t now_ms = static_cast<uint32_t>(std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()).count());
+        std::ifstream cuspFile("/home/hododaq/hodo_daq/CUSP/Number.txt");
+        if (cuspFile) {
+            int cuspValue;
+            cuspFile >> cuspValue;
+            Event eventCUSPrun;
+            eventCUSPrun.data.push_back(cuspValue);
+            eventCUSPrun.timestamp = now_ms;
+            CUSP.addEvent(eventCUSPrun);
+        }
+        block.addDataBank(CUSP);
 
-      while (!bankQueue.empty()) {
-          DataBank dataBank = std::move(bankQueue.front());
-          bankQueue.pop();
-          block.addDataBank(dataBank);
+        std::unique_lock<std::mutex> lock(bankQueueMutex);
+        dataAvailable.wait(lock, [] {return !bankQueue.empty() || stopReadout; });
 
-      }
+        if (bankQueue.empty() && stopReadout) break;
 
-      lock.unlock();
+        
+
+        while (!bankQueue.empty()) {
+            DataBank dataBank = std::move(bankQueue.front());
+            bankQueue.pop();
+            block.addDataBank(dataBank);
+
+        }
+
+        lock.unlock();
 
       // DataBank GATE("GATE");
-      // fpgas[0]->readFIFO(GATE, SCI_REG_List_0_FIFOADDRESS);   // This function will only be properly written once I have a working Gate Register on the V2495
+      // fpgas[0]->readFIFO(GATE, 0x0000);   // This function will only be properly written once I have a working Gate Register on the V2495
       // block.addDataBank(GATE);
 
-      DataBank CUSP("CUSP");        // Adding the current ms timestamp to the CUSP bank, since this won't change anything
-      auto now = std::chrono::system_clock::now();
-      auto now_ms = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()).count();
-      std::ifstream cuspFile("/home/hododaq/hodo_daq/CUSP/Number.txt");
-      if (cuspFile) {
-          int cuspValue;
-          cuspFile >> cuspValue;
-          Event eventCUSPrun;
-          eventCUSPrun.data.push_back(cuspValue);
-          eventCUSPrun.timestamp = now_ms;
-          CUSP.addEvent(eventCUSPrun);
-      }
-      block.addDataBank(CUSP);
 
-      std::vector<uint32_t> binaryData = block.serialize();
-      {
-          std::lock_guard<std::mutex> blockLock(blockQueueMutex);
-          blockQueue.push(std::move(binaryData));
-      }
-      blockQueueCond.notify_one();
 
-      blockID++;
+        std::vector<uint32_t> binaryData = block.serialize();
+        {
+            std::lock_guard<std::mutex> blockLock(blockQueueMutex);
+            blockQueue.push(std::move(binaryData));
+        }
+        blockQueueCond.notify_one();
+
+        blockID++;
 
   }
 }
@@ -312,14 +318,22 @@ void polling() {
                         tdcReading[i] = true;
                         log->debug("Readout thread started {:d}", i);
                     }
-                
                 }
                 isfull = false;
+                for (auto& thread : readoutThreads) {
+                    if (thread.joinable()) {
+                        thread.join();
+                    }
+                }
             }
             
             std::this_thread::sleep_for(std::chrono::milliseconds(10));  // Small delay to avoid overloading CPU
 
+
+
+
         }
+
     } catch (const std::exception& ex) {
         log->error("Exception in polling thread: {}", ex.what());
     } catch (...) {
@@ -456,6 +470,20 @@ void stop_run() {
 
             Block finalBlock(blockID);
 
+            DataBank CUSP("CUSP");        
+            auto now = std::chrono::system_clock::now();
+            uint32_t now_ms = static_cast<uint32_t>(std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()).count());
+            std::ifstream cuspFile("/home/hododaq/hodo_daq/CUSP/Number.txt");
+            if (cuspFile) {
+                int cuspValue;
+                cuspFile >> cuspValue;
+                Event eventCUSPrun;
+                eventCUSPrun.data.push_back(cuspValue);
+                eventCUSPrun.timestamp = now_ms;
+                CUSP.addEvent(eventCUSPrun);
+            }
+            finalBlock.addDataBank(CUSP);
+
             std::unique_lock<std::mutex> lock(bankQueueMutex);
             while (!bankQueue.empty()) {
                 DataBank dataBank = std::move(bankQueue.front());
@@ -472,19 +500,6 @@ void stop_run() {
             //fpgas[0]->readFIFO(GATE, 0x0000);  
             //finalBlock.addDataBank(GATE);
 
-            DataBank CUSP("CUSP");        
-            auto now = std::chrono::system_clock::now();
-            auto now_ms = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()).count();
-            std::ifstream cuspFile("/home/hododaq/hodo_daq/CUSP/Number.txt");
-            if (cuspFile) {
-                int cuspValue;
-                cuspFile >> cuspValue;
-                Event eventCUSPrun;
-                eventCUSPrun.data.push_back(cuspValue);
-                eventCUSPrun.timestamp = now_ms;
-                CUSP.addEvent(eventCUSPrun);
-            }
-            finalBlock.addDataBank(CUSP);
 
             // Serialize and push to file writer queue
             std::vector<uint32_t> binaryData = finalBlock.serialize();
@@ -606,13 +621,12 @@ bool hardware_inits() {
     for(int i=0; i<NUM_FPGAS; i++){
         V2495Status[i] = fpgas[i]->init(i); // Opens connection
 
-        if (V2495Status[i]) {
+        if (V2495Status[i] == 0) {
             log->info("V2495 module {0:d} is online", i);
         } else {
           log->info("V2495 module {0:d} is NOT online!", i);
           success = false;
         }
-
 
     }
 

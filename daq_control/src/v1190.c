@@ -94,7 +94,18 @@ int V1190_EnableETTT(int handle, int BaseAddress) {
 
     VMEerror |= CAENVME_WriteCycle(handle, BaseAddress + CONTROL, 
                                 &controlValue, cvA32_U_DATA, cvD16);
-    return controlValue;  // Success
+    return controlValue;  
+}
+
+int V1190_EnableBERR(int handle, int BaseAddress) {
+    int cr_berr; 
+    cr_berr = V1190ReadControlRegister(handle, BaseAddress);
+
+    int controlValue = cr_berr | BERR_ENABLE_MASK; // Set bit 1
+
+    VMEerror |= CAENVME_WriteCycle(handle, BaseAddress + CONTROL, 
+                                &controlValue, cvA32_U_DATA, cvD16);
+    return controlValue;  
 }
 
 int V1190SetBltEvtNr(unsigned short RegData, int handle, int BaseAddress)

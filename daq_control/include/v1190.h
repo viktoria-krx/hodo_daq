@@ -70,8 +70,9 @@ extern "C" {
 #define DATA_MEAS_25(r)        ( (r)      & 0x1FFFFF)
 #define DATA_TDC_WORD_CNT(r)   (((r)>>4)  & 0xFFFF)
 
-#define ETTT_ENABLE_MASK 0x0200
+#define ETTT_ENABLE_MASK 0x0a00
 #define FIFO_ENABLE_MASK 0x0100
+#define BERR_ENABLE_MASK 0x0001
 
 unsigned short V1190ReadRegister(unsigned short RegAddr, int handle, int BaseAddress);
 void V1190WriteRegister(unsigned short RegAddr, unsigned short RegData, int handle, int BaseAddress);
@@ -94,6 +95,7 @@ unsigned int V1190GetEventCounter(int handle, int BaseAddress);
 unsigned int V1190BLTRead(unsigned int *buffer, int BufferSize, int* nb, int handle, int BaseAddress);
 int V1190_EnableETTT(int handle, int BaseAddress);
 int V1190_EnableFIFO(int handle, int BaseAddress);
+int V1190_EnableBERR(int handle, int BaseAddress);
 
 
 #endif // V1190_BASIC_H

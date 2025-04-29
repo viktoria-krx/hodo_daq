@@ -20,7 +20,13 @@ int v2495::init(int fpgaId){
     // printf("  Trying to connect to the V2495 module\n");
     log->info("Trying to connect to the V2495 module");
 
-    checkModuleResponse();
+    if (checkModuleResponse()) {
+
+        return cvSuccess;
+
+    } else {
+        return cvGenericError;
+    }
 
     // switch (ConnType) {
     //     case 4: // ETH V4718
@@ -84,11 +90,12 @@ bool v2495::checkModuleResponse(){
     int vmeBA = (int)getBaseAddr();
 
     WriteDummyValue(0x1111, handle, vmeBA);
-    dummy = ReadDummyValue(handle, vmeBA);
+    dummy = (int)ReadDummyValue(handle, vmeBA);
 
     log->debug("Checking response of FPGA; dummy == {:#x}, should be 0x1111", dummy);
     // std::cout << "dummy " << dummy << std::endl;
-    if (dummy == 0x1111) return true;
+    if (dummy == (int)0x1111) return true;
+
     else return false;
 
 }
@@ -158,7 +165,7 @@ int v2495::readFIFO(DataBank& dataBank, uint32_t regAddress) {
     for (int i = 0; i < (int)n_words; i++) {
         uint32_t word = buff[i];
 
-        
+
         // // Check for Global Header (start of event)
         // if (IS_GLOBAL_HEADER(word)) {  
         //     if (!currentEvent.data.empty()) {

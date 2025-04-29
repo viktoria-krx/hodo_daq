@@ -11,11 +11,12 @@
 
 // ROOT TTree Event Structure
 struct TDCEvent {
-    uint32_t    eventID;
-    uint32_t    timestamp;
-    uint32_t    cuspRunNumber;
+    UInt_t    eventID;
+
+    UInt_t    timestamp;
+    UInt_t    cuspRunNumber;
     Bool_t      gate;
-    uint32_t    tdcTimeTag;
+    UInt_t    tdcTimeTag;
     Double_t    trgLE[4];
     Double_t    trgTE[4];
 
@@ -43,7 +44,7 @@ struct TDCEvent {
     Double_t    tileOTE[120];
     // Double_t    tileOToT[120];
 
-    uint32_t    tdcID;
+    UInt_t    tdcID;
     // uint32_t tdcChannel;
     // uint32_t tdcTime;
 
@@ -74,10 +75,12 @@ private:
     int32_t ch, rawch;
     int le_te;
     int tdcID;
-    Double_t geo = 0;
+    uint32_t geo = 0;
+    uint32_t timetag = 0;
     int32_t data_time;
     int32_t gateTime;
-    int32_t cuspValue;
+    bool gateValue = 0;
+    int32_t cuspValue = 0;
 };
 
 

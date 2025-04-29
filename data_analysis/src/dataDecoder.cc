@@ -12,7 +12,6 @@ DataDecoder::DataDecoder(const std::string& outputFile) {
     tree = new TTree("RawEventTree", "TTree holding the raw Hodoscope Data");
 
     // Define Tree Branches
-
     tree->Branch("eventID", &event.eventID, "eventID/i");
     tree->Branch("timestamp", &event.timestamp, "timestamp/D");
     tree->Branch("cuspRunNumber", &event.cuspRunNumber, "cuspRunNumber/i");
@@ -84,12 +83,13 @@ void TDCEvent::reset() {
     std::fill_n(tileOTE, 120, std::nan(""));
     // std::fill_n(tileOToT, 120, std::nan(""));
 
-    eventID = 0;
-    timestamp = 0;
-    cuspRunNumber = 0;
-    gate = false;
-    tdcTimeTag = 0;
-    tdcID = 0;
+    eventID = std::nan("");
+    timestamp = std::nan("");
+    cuspRunNumber = std::nan("");
+    gate = std::nan("");
+    tdcTimeTag = std::nan("");
+    tdcID = std::nan("");
+
 }
 
 // Destructor: Writes and Closes ROOT File
@@ -235,21 +235,29 @@ void DataDecoder::processEvent(const char bankName[4], const std::vector<uint32_
 
                 fillData(ch, rawch, le_te, data_time, event);
 
-                event.tdcTimeTag = DATA_MEAS(word);
+                
+                event.tdcID = tdcID;
 
-                log->debug("[TDC Hit] Bank: {0} | Raw Ch: {1:d} | TDC ID: {2} | Ch: {3:d} | Time: {4:d}", bankN, rawch, tdcID, ch, event.tdcTimeTag);
+                log->debug("[TDC Hit] Bank: {0} | Raw Ch: {1:d} | TDC ID: {2} | Ch: {3:d} | Time: {4:d}", bankN, rawch, tdcID, ch, data_time);
                 // std::cout << "[TDC Hit] Bank: " << bankName << " Ch: " << ch << " Time: " << event.tdcTimeTag << std::endl;
                 // tree->Fill();
             } else if (IS_TDC_HEADER(word)) {
                 log->debug("[TDC Header] Bank: {}", bankN);
             } else if (IS_TRIGGER_TIME_TAG(word)) {
-                log->debug("[TDC ETTT] Bank: {}", bankN);
+                timetag = DATA_MEAS(word);
+                log->debug("[TDC ETTT] Bank: {} | TimeTag: {:d}", bankN, event.tdcTimeTag);
             } else if (IS_TDC_TRAILER(word)) {
-                log->debug("[TDC Trailer] Bank: {}", bankN);
+                event.eventID = DATA_EVENT_ID(word);
+                log->debug("[TDC Trailer] Bank: {} | Event ID: {}", bankN, event.eventID);
             } else if (IS_GLOBAL_HEADER(word)) {
-                log->debug("[Global Header]");
+                
+                log->debug("[Global Header] | GEO: {}", geo);
             } else if (IS_GLOBAL_TRAILER(word)) {
                 log->debug("[Global Trailer]");
+                geo = ETTT_GEO(word);
+                event.tdcTimeTag = timetag*32+geo;
+                event.cuspRunNumber = cuspValue;
+                event.gate = gateValue; 
                 tree->Fill();
                 event.reset();
 
@@ -261,17 +269,22 @@ void DataDecoder::processEvent(const char bankName[4], const std::vector<uint32_
         if (!data.empty()) {
             gateTime = data[0];
             log->debug("[GATE Event] Time: {0:d}", gateTime);
-            // tree->Fill();
+            tree->Fill();
+            event.reset();
         }
     } else if (bankN == "CUSP") {
         if (!data.empty()) {
             cuspValue = data[0];
+            event.cuspRunNumber = cuspValue;
+            event.timestamp = data[1];
             log->debug("[CUSP Event] Value: {0:d}", cuspValue);
             // tree->Fill();
+            // event.reset();
         }
     } else {
         log->warn("Unknown Bank: {0}", bankN);
     }
+
 }
 
 // Write TTree to ROOT File

@@ -186,6 +186,8 @@ class DAQControllerApp:
         self.send_command("start")
         self.stop_button.config(state="normal")
         self.start_button.config(state="disabled")
+        self.stop_daq_button.config(state="disabled")
+        self.start_daq_button.config(state="disabled")
         self.run_running = True
         self.update_floodgauge()
         self.update_run_number()
@@ -194,6 +196,7 @@ class DAQControllerApp:
         self.send_command("stop")
         self.start_button.config(state="normal")
         self.stop_button.config(state="disabled")
+        self.stop_daq_button.config(state="normal")
         self.run_running = False
         self.run_progress_bar["value"] = 0
         self.run_progress_bar["text"] = "Not Running"
@@ -221,6 +224,7 @@ class DAQControllerApp:
             self.stop_button.config(state="disabled")
             self.pause_button.config(state="disabled")
             self.resume_button.config(state="disabled")
+            self.start_daq_button.config(state="normal")
             self.auto_run_checkbox.config(state="disabled")
             self.auto_run_label.config(bootstyle="success")
             self.auto_run_enabled = False

@@ -8,7 +8,7 @@
 #include <string>
 
 
-#define DATA_TYPE(r)           (((r)>>27) & 0x1F)
+#define DATA_TYPE(r)           (((r)>>27)  & 0x1F)
 #define IS_GLOBAL_HEADER(r)    ((((r)>>27) & 0x1F) == 0x08)  // 01000
 #define IS_GLOBAL_TRAILER(r)   ((((r)>>27) & 0x1F) == 0x10)  // 10000
 #define IS_TRIGGER_TIME_TAG(r) ((((r)>>27) & 0x1F) == 0x11)  // 10001
@@ -27,8 +27,9 @@
 #define DATA_MEAS(r)           ( (r)      & 0x7FFFF)
 #define DATA_MEAS_25(r)        ( (r)      & 0x1FFFFF)
 #define DATA_TDC_WORD_CNT(r)   (((r)>>4)  & 0xFFFF)
-#define DATA_EDGE(r)           (((r) & 0x04000000) >>26)
-
+#define DATA_EDGE(r)           (((r)      & 0x04000000) >>26)
+#define EXTENDED_TT(r)         (((r)      & 0x7FFFFFF))
+#define ETTT_GEO(r)            (((r)      & 0x0000001F))
 
 // Event Structure
 struct Event {

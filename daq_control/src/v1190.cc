@@ -68,7 +68,7 @@ bool v1190::setupV1190(int tdcId){
     int retVal = 0;
 
     int status;
-    int cr, ettt, al64, blt, fifo;
+    int cr, ettt, al64, blt, fifo, berr;
     
 
     // perform board reset
@@ -87,14 +87,17 @@ bool v1190::setupV1190(int tdcId){
 
     ettt = V1190_EnableETTT(handle, vmeBaseAddress);
     // printf("  ETTT enabled             : 0x%08x \n", ettt ); 
-    log->debug("ETTT enabled             : {:#x}", ettt );
+    log->debug("ETTT enabled           CR  : {:#x}", ettt );
 
-    blt = V1190SetBltEvtNr(0x3f, handle, vmeBaseAddress);
+    blt = V1190SetBltEvtNr(0xff, handle, vmeBaseAddress);
     // printf("  BLT set                  : 0x%04x \n", blt );
-    log->debug("BLT set                  : {:#x}", blt);
+    log->debug("BLT set                CR  : {:#x}", blt);
 
     fifo = V1190_EnableFIFO(handle, vmeBaseAddress);
-    log->debug("FIFO enabled             : {:#x}", fifo );
+    log->debug("FIFO enabled           CR  : {:#x}", fifo );
+
+    berr = V1190_EnableBERR(handle, vmeBaseAddress);
+    log->debug("BERR enabled           CR  : {:#x}", berr );
 
 
     // cr = V1190ReadControlRegister(handle, vmeBaseAddress);
@@ -295,7 +298,7 @@ unsigned int v1190::BLTRead(DataBank& dataBank) {
 
         // Check for Global Header (start of event)
         if (IS_GLOBAL_HEADER(word)) {  
-            log->debug("word: {:#x}", word);
+            //log->debug("word: {:#x}", word);
             if (!currentEvent.data.empty()) {
                 dataBank.addEvent(currentEvent);            //  Add completed event
                 currentEvent.data.clear();
