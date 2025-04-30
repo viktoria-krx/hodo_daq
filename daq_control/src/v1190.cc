@@ -109,7 +109,7 @@ bool v1190::setupV1190(int tdcId){
 
     //////////////////////////////////////////////////////////////
 
-    unsigned short int almost_full_level = 2*4096; //512;  //Maximum nr of 32-bit words per BLT
+    unsigned short int almost_full_level = 512; //512;  //Maximum nr of 32-bit words per BLT
     // 16383;  //Maximum nr of 32-bit words per BLT for 1000 Hz
     V1190SetAlmostFullLevel(almost_full_level, handle, vmeBaseAddress);
 
@@ -224,7 +224,7 @@ bool v1190::checkModuleResponse(){
     dummy = V1190ReadDummyValue(handle, vmeBaseAddress);
 
     log->debug("Checking response of TDC; dummy == {:#x}, should be 0x1111", dummy);
-    // std::cout << "dummy " << dummy << std::endl;
+    
     if (dummy == 0x1111) return true;
     else return false;
 
@@ -286,10 +286,12 @@ unsigned int v1190::BLTRead(DataBank& dataBank) {
         // std::cerr << "BLT Readout Error" << std::endl;
         return ret;
     }
+    
+    std::string bankN(dataBank.bankName, 4);
 
     int n_words = bytesRead / 4;
     // printf("%i words read\n", n_words);
-    log->debug("{:d} words read", n_words);
+    log->debug("{0:d} words read from {1}", n_words, bankN);
 
 
     Event currentEvent;

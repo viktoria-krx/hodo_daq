@@ -18,9 +18,11 @@ public:
     const char* getBankName() const;
     const std::vector<Event>& getEvents() const;
 
+    char bankName[4];
+
 private:
     // uint32_t bankID;
-    char bankName[4];
+    
     std::vector<Event> events;
 };
 

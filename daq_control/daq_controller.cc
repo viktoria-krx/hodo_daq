@@ -27,7 +27,7 @@ v2495 *fpgas[NUM_FPGAS];
 int V2495Status[NUM_FPGAS];
 
 // Define all base addresses:
-static const unsigned int vmeBaseAddress = 0x32100000;
+// static const unsigned int vmeBaseAddress = 0x32100000;
 char* vmeIPAddress = "192.168.1.254\0";
 static const unsigned int TDCbaseAddresses[] = {0x90900000, 0x90910000, 0x90920000, 0x90930000};
 const char* FPGAbaseAddress = "30300000";
@@ -47,6 +47,7 @@ std::mutex bankQueueMutex;
 std::condition_variable dataAvailable;
 bool stopReadout = false;
 std::vector<std::thread> readoutThreads;
+std::vector<bool> tdcReading(NUM_TDCS, false);
 std::thread pollingThread;
 std::thread processingThread;
 
@@ -148,7 +149,7 @@ char* getRunFilename(int runNumber, const std::string& path, const std::string& 
  */
 void startReadoutThread(v1190& tdc, std::string bankName) {
     readoutThreads.emplace_back([&tdc, bankName] () {
-        while(!stopReadout) {
+        // while(!stopReadout) {
             DataBank dataBank(bankName.c_str());
             unsigned int wordsRead = tdc.BLTRead(dataBank);
 
@@ -157,9 +158,11 @@ void startReadoutThread(v1190& tdc, std::string bankName) {
                 bankQueue.push(std::move(dataBank));
                 dataAvailable.notify_one();
             }
-            std::this_thread::sleep_for(std::chrono::milliseconds(10));
+            int tdcID = bankName.back() - '0';
+            tdcReading[tdcID] = false;
+            //std::this_thread::sleep_for(std::chrono::milliseconds(10));
 
-        }
+        //}
     });
 }
 
@@ -237,14 +240,14 @@ void fileWriterThread() {
 
         DataBank CUSP("CUSP");        // Adding the current ms timestamp to the CUSP bank, since this won't change anything
         auto now = std::chrono::system_clock::now();
-        uint32_t now_ms = static_cast<uint32_t>(std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()).count());
+        uint32_t now_s = static_cast<uint32_t>(std::chrono::duration_cast<std::chrono::seconds>(now.time_since_epoch()).count());
         std::ifstream cuspFile("/home/hododaq/hodo_daq/CUSP/Number.txt");
         if (cuspFile) {
             int cuspValue;
             cuspFile >> cuspValue;
             Event eventCUSPrun;
             eventCUSPrun.data.push_back(cuspValue);
-            eventCUSPrun.timestamp = now_ms;
+            eventCUSPrun.timestamp = now_s;
             CUSP.addEvent(eventCUSPrun);
         }
         block.addDataBank(CUSP);
@@ -300,7 +303,6 @@ void polling() {
 
     try {
         bool isfull = false;
-        std::vector<bool> tdcReading(NUM_TDCS, false);
 
         while (!stopReadout) {
             isfull = false;
@@ -313,21 +315,26 @@ void polling() {
 
                 for (int i = 0; i < NUM_TDCS; i++){
                     if (!tdcReading[i]) {
-                        log->debug("Starting readout thread {:d}", i);
-                        startReadoutThread(*tdcs[i], "TDC"+std::to_string(i));
+                        // log->debug("Starting readout thread {:d}", i);
                         tdcReading[i] = true;
+                        startReadoutThread(*tdcs[i], "TDC"+std::to_string(i));
+                        
                         log->debug("Readout thread started {:d}", i);
                     }
                 }
                 isfull = false;
+                std::this_thread::sleep_for(std::chrono::milliseconds(10));  // Small delay to avoid overloading CPU
                 for (auto& thread : readoutThreads) {
                     if (thread.joinable()) {
                         thread.join();
                     }
                 }
+                readoutThreads.clear();
+                readoutThreads.resize(NUM_TDCS);
+                
             }
             
-            std::this_thread::sleep_for(std::chrono::milliseconds(10));  // Small delay to avoid overloading CPU
+            
 
 
 
@@ -360,7 +367,6 @@ bool start_run() {
     auto log = Logger::getLogger();
 
     log->info("Starting data acquisition...");
-    // std::cout << "Starting data acquisition..." << std::endl;
 
     is_running = true;
     
@@ -402,8 +408,7 @@ bool start_run() {
 
     vme.stopVeto();
     log->info("Data acquisition started!");
-    
-    // std::cout << "Data acquisition started!" << std::endl;
+
     return true;
 }
 
@@ -424,7 +429,6 @@ void stop_run() {
     if (is_running) {
         
         log->info("Stopping data acquisition...");
-        // std::cout << "Stopping data acquisition..." << std::endl;
 
         for (auto tdc : tdcs) {
             tdc->stop(); 
@@ -450,7 +454,6 @@ void stop_run() {
 
         log->debug("Forcing final readout of TDCs");
 
-        // std::cout << "Forcing final readout of TDCs" << std::endl;
         for (int i = 0; i < NUM_TDCS; i++) {
             DataBank lastBank(("TDC" + std::to_string(i)).c_str());
             unsigned int wordsRead = tdcs[i]->BLTRead(lastBank);
@@ -466,20 +469,18 @@ void stop_run() {
 
             log->debug("Flushing remaining data...");
 
-            // std::cout << "Flushing remaining data..." << std::endl;
-
             Block finalBlock(blockID);
 
             DataBank CUSP("CUSP");        
             auto now = std::chrono::system_clock::now();
-            uint32_t now_ms = static_cast<uint32_t>(std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()).count());
+            uint32_t now_s = static_cast<uint32_t>(std::chrono::duration_cast<std::chrono::seconds>(now.time_since_epoch()).count());
             std::ifstream cuspFile("/home/hododaq/hodo_daq/CUSP/Number.txt");
             if (cuspFile) {
                 int cuspValue;
                 cuspFile >> cuspValue;
                 Event eventCUSPrun;
                 eventCUSPrun.data.push_back(cuspValue);
-                eventCUSPrun.timestamp = now_ms;
+                eventCUSPrun.timestamp = now_s;
                 CUSP.addEvent(eventCUSPrun);
             }
             finalBlock.addDataBank(CUSP);
@@ -518,7 +519,7 @@ void stop_run() {
             fileWriter.join();
         }
 
-        // std::cout << "Data acquisition stopped!" << std::endl;
+        
         log->info("Data acquisition stopped");
 
         is_running = false;

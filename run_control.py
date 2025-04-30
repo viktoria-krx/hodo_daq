@@ -120,9 +120,10 @@ class DAQControllerApp:
         self.run_duration_entry.grid(row=2, column=3, sticky="nw", padx=20, pady=20)
 
         # Run progress bar
-        self.run_progress_bar = ttk.Floodgauge(root, bootstyle="dark", maximum=self.run_duration_var.get(), value=0, text="Not Running", length = int(screen_width*0.75/4), mode="determinate", font=self.text_font)
+        self.run_progress_bar = ttk.Floodgauge(root, bootstyle="dark", maximum=self.run_duration_var.get(), value=0, 
+                                               text="Not Running", length = int(screen_width*0.75/4), mode="determinate", 
+                                               font=self.text_font)
         self.run_progress_bar.grid(row=2, column=4, columnspan=2, sticky="nw", padx=20, pady=10)
-
 
         # Buttons
         self.button_width = 15

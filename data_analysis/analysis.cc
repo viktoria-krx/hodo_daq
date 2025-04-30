@@ -130,7 +130,7 @@ void monitor_file(int runNumber) {
             if (reader.readNextBlock(block, last_size)) {
                 for (auto& bank : block.banks) {
                     for (auto& event : bank.events) {
-                        decoder.processEvent(bank.bankName, event.data);
+                        decoder.processEvent(bank.bankName, event);
                     }   
                 }
             }
@@ -160,7 +160,7 @@ void runOfflineAnalysis(int runNumber) {
     while (reader.readNextBlock(block, last_pos)) {
         for (auto& bank : block.banks) {
             for (auto& event : bank.events) {
-                decoder.processEvent(bank.bankName, event.data);
+                decoder.processEvent(bank.bankName, event);
             }   
         }
         last_pos = reader.currentPos;
@@ -182,8 +182,7 @@ int main(int argc, char* argv[]) {
     log->debug("Oy!");
 
     bool liveMode = false;
-
-
+    
     if (argc < 2) {
         log->error("Usage: ./hodo_analysis <run_number>");
         return 1;

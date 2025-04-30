@@ -29,7 +29,7 @@
 #define DATA_TDC_WORD_CNT(r)   (((r)>>4)  & 0xFFFF)
 #define DATA_EDGE(r)           (((r)      & 0x04000000) >>26)
 #define EXTENDED_TT(r)         (((r)      & 0x7FFFFFF))
-#define ETTT_GEO(r)            (((r)      & 0x0000001F))
+#define ETTT_GEO(r)            (((r)      & 0x1F))
 
 // Event Structure
 struct Event {

@@ -93,7 +93,7 @@ bool v2495::checkModuleResponse(){
     dummy = (int)ReadDummyValue(handle, vmeBA);
 
     log->debug("Checking response of FPGA; dummy == {:#x}, should be 0x1111", dummy);
-    // std::cout << "dummy " << dummy << std::endl;
+    
     if (dummy == (int)0x1111) return true;
 
     else return false;

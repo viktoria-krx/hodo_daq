@@ -83,12 +83,12 @@ void TDCEvent::reset() {
     std::fill_n(tileOTE, 120, std::nan(""));
     // std::fill_n(tileOToT, 120, std::nan(""));
 
-    eventID = std::nan("");
-    timestamp = std::nan("");
-    cuspRunNumber = std::nan("");
+    eventID = -1;
+    timestamp = -1;
+    cuspRunNumber = -1;
     gate = std::nan("");
     tdcTimeTag = std::nan("");
-    tdcID = std::nan("");
+    tdcID = -1;
 
 }
 
@@ -115,15 +115,15 @@ enum DetectorType {
 };
 
 std::map<int, DetectorType> channelMap = {
-    {-90, TILE_IT},
-    {-50, HODO_IUs},
-    {-1, HODO_IDs},
-    {1, HODO_ODs}, 
-    {50, HODO_OUs}, 
-    {100, TILE_OT}, 
-    {300, BGO}, 
-    {500, TRG}, 
-    {600, UNKNOWN}  
+    { -90,   TILE_IT   },
+    { -50,   HODO_IUs  },
+    {  -1,   HODO_IDs  },
+    {   1,   HODO_ODs  }, 
+    {  50,   HODO_OUs  }, 
+    { 100,   TILE_OT   }, 
+    { 300,   BGO       }, 
+    { 500,   TRG       }, 
+    { 600,   UNKNOWN   }  
 };
 
 
@@ -139,17 +139,17 @@ std::map<int, DetectorType> channelMap = {
 
 DetectorType getDetectorType(int channel) {
     if (channel < 0) {
-        if (channel > -50) return HODO_IDs;   // Inner Downstream Bars
-        else if (channel > -90) return HODO_IUs;  // Inner Upstream Bars
-        else return TILE_IT;   // Inner Tiles
+        if (channel > -50) return HODO_IDs;         // Inner Downstream Bars
+        else if (channel > -90) return HODO_IUs;    // Inner Upstream Bars
+        else return TILE_IT;                        // Inner Tiles
     } else {
-        if (channel >= 1 && channel < 50) return HODO_ODs;  // Outer Downstream Bars
-        else if (channel >= 50 && channel < 90) return HODO_OUs;  // Outer Upstream Bars
-        else if (channel >= 100 && channel < 250) return TILE_OT;  // Outer Tiles
-        else if (channel >= 300 && channel < 400) return BGO;  // BGO
-        else if (channel >= 500 && channel < 600) return TRG;  // Trigger
-        else if (channel == 600) return GATE;  // Gate
-        return UNKNOWN;  // For any unknown channels
+        if (channel >= 1 && channel < 50) return HODO_ODs;          // Outer Downstream Bars
+        else if (channel >= 50 && channel < 90) return HODO_OUs;    // Outer Upstream Bars
+        else if (channel >= 100 && channel < 250) return TILE_OT;   // Outer Tiles
+        else if (channel >= 300 && channel < 400) return BGO;       // BGO
+        else if (channel >= 500 && channel < 600) return TRG;       // Trigger
+        else if (channel == 600) return GATE;                       // Gate
+        return UNKNOWN;                                             // For any unknown channels
     }
 }
 
@@ -192,11 +192,11 @@ bool DataDecoder::fillData(int channel, int rawchannel, int edge, int32_t time, 
 
     // Convert negative channels
     if (channel < 0) {
-        if (channel > -50) channel *= -1;           // Inner Downstream Bars
-        else if (channel > -90) channel = (-channel) - 50;  // Inner Upstream Bars
-        else channel = (-channel) - 100;            // Inner Tiles
+        if      (channel > -50) channel *= -1;           // Inner Downstream Bars
+        else if (channel > -90) channel  = (-channel) - 50;  // Inner Upstream Bars
+        else     channel = (-channel) - 100;            // Inner Tiles
     } else {
-        if (channel >= 50 && channel < 90) channel -= 50;  // Outer Upstream Bars
+        if      (channel >=  50 && channel <  90) channel -= 50;  // Outer Upstream Bars
         else if (channel >= 100 && channel < 250) channel -= 100; // Outer Tiles
         else if (channel >= 300 && channel < 400) channel -= 300; // BGO
         else if (channel >= 500 && channel < 600) channel -= 500; // Trigger
@@ -209,9 +209,11 @@ bool DataDecoder::fillData(int channel, int rawchannel, int edge, int32_t time, 
 }
 
 
-void DataDecoder::processEvent(const char bankName[4], const std::vector<uint32_t>& data) {
+void DataDecoder::processEvent(const char bankName[4], Event dataevent) {
 
     auto log = Logger::getLogger();
+
+    const std::vector<uint32_t>& data = dataevent.data;
 
     std::string bankN(bankName, 4);
 
@@ -235,28 +237,38 @@ void DataDecoder::processEvent(const char bankName[4], const std::vector<uint32_
 
                 fillData(ch, rawch, le_te, data_time, event);
 
-                
                 event.tdcID = tdcID;
 
                 log->debug("[TDC Hit] Bank: {0} | Raw Ch: {1:d} | TDC ID: {2} | Ch: {3:d} | Time: {4:d}", bankN, rawch, tdcID, ch, data_time);
-                // std::cout << "[TDC Hit] Bank: " << bankName << " Ch: " << ch << " Time: " << event.tdcTimeTag << std::endl;
-                // tree->Fill();
+                
             } else if (IS_TDC_HEADER(word)) {
                 log->debug("[TDC Header] Bank: {}", bankN);
             } else if (IS_TRIGGER_TIME_TAG(word)) {
+
                 timetag = DATA_MEAS(word);
-                log->debug("[TDC ETTT] Bank: {} | TimeTag: {:d}", bankN, event.tdcTimeTag);
+                log->debug("[TDC ETTT] Bank: {}", bankN);
+
             } else if (IS_TDC_TRAILER(word)) {
-                event.eventID = DATA_EVENT_ID(word);
+
+                this_evt[tdcID] = DATA_EVENT_ID(word) + reset_ctr[tdcID] * 1024 ;
+                if (this_evt[tdcID] < last_evt[tdcID]) {
+                    reset_ctr[tdcID]++;
+                }
+                
+
+
+                event.eventID = DATA_EVENT_ID(word) + reset_ctr[tdcID] * 1024 ;
                 log->debug("[TDC Trailer] Bank: {} | Event ID: {}", bankN, event.eventID);
             } else if (IS_GLOBAL_HEADER(word)) {
-                
-                log->debug("[Global Header] | GEO: {}", geo);
+                log->debug("[Global Header]");
             } else if (IS_GLOBAL_TRAILER(word)) {
-                log->debug("[Global Trailer]");
+
                 geo = ETTT_GEO(word);
+                log->debug("[Global Trailer] | GEO: {} | TimeTag: {:d}", geo, timetag*32+geo);
+                
                 event.tdcTimeTag = timetag*32+geo;
                 event.cuspRunNumber = cuspValue;
+                event.timestamp = static_cast<Double_t>(secTime);
                 event.gate = gateValue; 
                 tree->Fill();
                 event.reset();
@@ -269,15 +281,19 @@ void DataDecoder::processEvent(const char bankName[4], const std::vector<uint32_
         if (!data.empty()) {
             gateTime = data[0];
             log->debug("[GATE Event] Time: {0:d}", gateTime);
-            tree->Fill();
-            event.reset();
+            //tree->Fill();
+            //event.reset();
         }
     } else if (bankN == "CUSP") {
         if (!data.empty()) {
+            for (size_t i = 0; i < data.size(); i++) {
+            }
             cuspValue = data[0];
             event.cuspRunNumber = cuspValue;
-            event.timestamp = data[1];
-            log->debug("[CUSP Event] Value: {0:d}", cuspValue);
+            
+            secTime = dataevent.timestamp;
+            event.timestamp = secTime;
+            log->debug("[CUSP Event] Value: {0:d} | Time: {1:d}", cuspValue, secTime);
             // tree->Fill();
             // event.reset();
         }
