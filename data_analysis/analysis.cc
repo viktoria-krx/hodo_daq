@@ -169,6 +169,9 @@ void runOfflineAnalysis(int runNumber) {
     decoder.writeTree();
     decoder.flush();
 
+    DataFilter filter;
+    filter.fileSorter(getRootFilename(runNumber).c_str(), 0, getDataFilename(runNumber).c_str());
+
 }
 
 void runLiveAnalysis(int runNumber) {}
@@ -182,7 +185,7 @@ int main(int argc, char* argv[]) {
     log->debug("Oy!");
 
     bool liveMode = false;
-    
+
     if (argc < 2) {
         log->error("Usage: ./hodo_analysis <run_number>");
         return 1;

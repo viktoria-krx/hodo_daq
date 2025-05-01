@@ -84,12 +84,17 @@ void mergeIfUnset(Bool_t (&out), const Bool_t (&in)) {
 
 void DataFilter::fileSorter(const char* inputFile, int last_evt, const char* outputFile) {
     TFile* file = TFile::Open(inputFile);
-    TTree* tree = (TTree*)file->Get("rawTree");
+    TTree* tree = (TTree*)file->Get("RawEventTree");
 
     // New output file
-    TFile* output = new TFile(outputFile, "UPDATE");
-    TTree* newTree = (TTree*)output->Get("eventTree");
-    // TTree* newTree = tree->CloneTree(0);
+    TFile* output;
+    if (last_evt == 0){
+        output = new TFile(outputFile, "RECREATE");
+    } else {
+        output = new TFile(outputFile, "UPDATE");
+    }
+    
+    TTree* newTree = (TTree*)output->Get("EventTree");
 
     TDCEvent eventIn;
 
@@ -229,14 +234,14 @@ void DataFilter::fileSorter(const char* inputFile, int last_evt, const char* out
 
             tree->GetEntry(j);
 
-            mergeIfUnset(eventOut.trgLE, eventIn.trgLE);
-            mergeIfUnset(eventOut.trgTE, eventIn.trgTE);
+            mergeIfUnset(eventOut.trgLE,         eventIn.trgLE);
+            mergeIfUnset(eventOut.trgTE,         eventIn.trgTE);
 
-            mergeIfUnset(eventOut.eventID, eventIn.eventID);
-            mergeIfUnset(eventOut.timestamp, eventIn.timestamp);
+            mergeIfUnset(eventOut.eventID,       eventIn.eventID);
+            mergeIfUnset(eventOut.timestamp,     eventIn.timestamp);
             mergeIfUnset(eventOut.cuspRunNumber, eventIn.cuspRunNumber);
-            mergeIfUnset(eventOut.gate, eventIn.gate);
-            mergeIfUnset(eventOut.tdcTimeTag, eventIn.tdcTimeTag);
+            mergeIfUnset(eventOut.gate,          eventIn.gate);
+            mergeIfUnset(eventOut.tdcTimeTag,    eventIn.tdcTimeTag);
 
             switch (tdc) {
                 case 0:

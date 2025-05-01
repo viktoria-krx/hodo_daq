@@ -13,8 +13,8 @@
 
 class DataFilter {
 public:
-    DataFilter(const char* inputFile);
-    ~DataFilter();
+    DataFilter(){};
+    ~DataFilter(){};
     void filterAndSend(const char* inputFile, int last_evt);
     void fileSorter(const char* inputFile, int last_evt, const char* outputFileName);
 private:

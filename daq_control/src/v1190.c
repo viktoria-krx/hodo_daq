@@ -182,7 +182,6 @@ unsigned int V1190GetEventCounter(int handle, int BaseAddress)
     return reg;
 }
 
-
 unsigned int V1190BLTRead(unsigned int *buffer, int BufferSize, int* nb, int handle, int BaseAddress)
 {
     unsigned int ret = 0;

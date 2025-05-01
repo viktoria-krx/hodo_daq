@@ -80,21 +80,18 @@ bool v1190::setupV1190(int tdcId){
     cr = V1190ReadControlRegister(handle, vmeBaseAddress);
 
     // cr = v1190_EnableFifo(vme, vmeBaseAdress);
-    // printf("\n  Control register status: 0x%04x \n", cr );
     log->debug("Control register status: {0:#x}", cr);
 
     //////////////////////////////////////////////////////////////
 
     ettt = V1190_EnableETTT(handle, vmeBaseAddress);
-    // printf("  ETTT enabled             : 0x%08x \n", ettt ); 
     log->debug("ETTT enabled           CR  : {:#x}", ettt );
 
     blt = V1190SetBltEvtNr(0xff, handle, vmeBaseAddress);
-    // printf("  BLT set                  : 0x%04x \n", blt );
     log->debug("BLT set                CR  : {:#x}", blt);
 
-    fifo = V1190_EnableFIFO(handle, vmeBaseAddress);
-    log->debug("FIFO enabled           CR  : {:#x}", fifo );
+    // fifo = V1190_EnableFIFO(handle, vmeBaseAddress);
+    // log->debug("FIFO enabled           CR  : {:#x}", fifo );
 
     berr = V1190_EnableBERR(handle, vmeBaseAddress);
     log->debug("BERR enabled           CR  : {:#x}", berr );
@@ -305,11 +302,13 @@ unsigned int v1190::BLTRead(DataBank& dataBank) {
                 dataBank.addEvent(currentEvent);            //  Add completed event
                 currentEvent.data.clear();
             }
-            currentEvent.eventID = DATA_EVENT_ID(word);     // Extract event ID
+
             currentEvent.data.push_back(word);
         }
         else if (IS_TDC_HEADER(word)) {
             currentEvent.timestamp = DATA_BUNCH_ID(word);
+            currentEvent.eventID = DATA_EVENT_ID(word);
+            log->debug("Event {0:d} from {1}", currentEvent.eventID, bankN);
             currentEvent.data.push_back(word);
         }
         // Check for Global Trailer (end of event)

@@ -39,12 +39,12 @@ DataDecoder::DataDecoder(const std::string& outputFile) {
 
     tree->Branch("tileILE", &event.tileILE, "tileILE[120]/D");     // Tile Inner Leading Edges
     tree->Branch("tileITE", &event.tileITE, "tileITE[120]/D");     // Tile Inner Trailing Edges
-    tree->Branch("tileOEL", &event.tileOLE, "tileOEL[120]/D");     // Tile Outer Leading Edges
+    tree->Branch("tileOLE", &event.tileOLE, "tileOLE[120]/D");     // Tile Outer Leading Edges
     tree->Branch("tileOTE", &event.tileOTE, "tileOTE[120]/D");     // Tile Outer Trailing Edges
     // tree->Branch("tileIToT", &event.tileIToT, "tileIToT[120]/D");     // Tile Inner Time over Threshold
     // tree->Branch("tileOToT", &event.tileOToT, "tileOToT[120]/D");     // Tile Outer Time over Threshold
 
-    tree->Branch("tdcID", &event.tdcID, "tdcID/I");
+    tree->Branch("tdcID", &event.tdcID, "tdcID/i");
     // tree->Branch("tdcChannel", &event.tdcChannel, "tdcChannel/i");
     
 }
@@ -250,14 +250,12 @@ void DataDecoder::processEvent(const char bankName[4], Event dataevent) {
 
             } else if (IS_TDC_TRAILER(word)) {
 
-                this_evt[tdcID] = DATA_EVENT_ID(word) + reset_ctr[tdcID] * 1024 ;
+                this_evt[tdcID] = DATA_EVENT_ID(word) + reset_ctr[tdcID] * 0x1000 ;
                 if (this_evt[tdcID] < last_evt[tdcID]) {
                     reset_ctr[tdcID]++;
                 }
-                
-
-
-                event.eventID = DATA_EVENT_ID(word) + reset_ctr[tdcID] * 1024 ;
+                event.eventID = DATA_EVENT_ID(word) + reset_ctr[tdcID] * 0x1000 ;
+                last_evt[tdcID] = event.eventID;
                 log->debug("[TDC Trailer] Bank: {} | Event ID: {}", bankN, event.eventID);
             } else if (IS_GLOBAL_HEADER(word)) {
                 log->debug("[Global Header]");
