@@ -56,7 +56,7 @@ std::map<std::string, std::string> loadConfig() {
         std::string key, value;
         if (std::getline(ss, key, '=') && std::getline(ss, value)) {
             config[key] = value;
-            log->debug("{0} = {1}", key, value);
+            // log->debug("{0} = {1}", key, value);
         }
     }
     return config;
@@ -154,6 +154,8 @@ void runOfflineAnalysis(int runNumber) {
 
     DataDecoder decoder(getRootFilename(runNumber));
 
+    log->info("Processing binary data ...");
+
     std::ifstream file(binFile, std::ios::binary);
     Block block;
     long last_pos = 0;
@@ -166,11 +168,14 @@ void runOfflineAnalysis(int runNumber) {
         last_pos = reader.currentPos;
     }
 
+    log->info("Saving {}", binFile);
     decoder.writeTree();
     decoder.flush();
 
+    log->info("Sorting ROOT file, merging TDC Data ...");
     DataFilter filter;
     filter.fileSorter(getRootFilename(runNumber).c_str(), 0, getDataFilename(runNumber).c_str());
+    log->info("Filtering ROOT file, saving as EventTree ...");
     filter.filterAndSave(getDataFilename(runNumber).c_str(), 0);
 
 }

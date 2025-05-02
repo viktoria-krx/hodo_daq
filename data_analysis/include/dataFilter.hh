@@ -21,8 +21,8 @@ public:
     void fileSorter(const char* inputFile, int last_evt, const char* outputFileName);
     void convertTime(TDCEvent& event);
 private:
-    int LE_CUT = 400;   // ns
-    int ToT_CUT = 200;  // ns 
+    const Double_t LE_CUT = 400.;   // ns
+    const Double_t ToT_CUT = 200.;  // ns 
 };
 
 #endif

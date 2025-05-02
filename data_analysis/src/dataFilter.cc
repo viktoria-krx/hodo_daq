@@ -13,7 +13,7 @@ ROOT::VecOps::RVec<Double_t> computeToT(const ROOT::RVec<Double_t>& le,
                                         const ROOT::RVec<Double_t>& te) {
     ROOT::VecOps::RVec<Double_t> tot(N);
     for (size_t i = 0; i < N; ++i) {
-        tot[i] = (le[i] > 0 && te[i] > 0) ? (te[i] - le[i]) : NAN;
+        tot[i] = (le[i] > 0 && te[i] > le[i]) ? (te[i] - le[i]) : NAN;
     }
     return tot;
 }
@@ -51,6 +51,18 @@ std::vector<int> getActiveIndices(const ROOT::RVec<Double_t>& arr) {
         }
     }
     return indices;
+}
+
+
+ROOT::VecOps::RVec<Double_t> filterVector(
+    const ROOT::VecOps::RVec<Double_t>& vec,
+    const std::function<bool(Double_t)>& pred) 
+{
+    ROOT::VecOps::RVec<Double_t> out(vec.size());
+    for (size_t i = 0; i < vec.size(); ++i) {
+        out[i] = pred(vec[i]) ? vec[i] : NAN;
+    }
+    return out;
 }
 
 template <size_t N>
@@ -334,12 +346,22 @@ void DataFilter::convertTime(TDCEvent& event) {
 
 void DataFilter::filterAndSave(const char* inputFile, int last_evt) {
 
+    auto log = Logger::getLogger();
+
     // Load ROOT file
     ROOT::RDataFrame df("RawEventTree", inputFile);
+
+    auto nEntriesBeforeCuts = df.Count();
+    double eventsUncut = static_cast<double>(*nEntriesBeforeCuts);
+    log->info("{} events before cuts", eventsUncut);
 
     // Example filter: select events where tdcTimeTag > 1000
     auto filtered_df = df.Filter("eventID > " + std::to_string(last_evt), "New Events")
             //.Filter("bgoLE < " + std::to_string(LE_CUT), "Time Cut")
+            .Define("bgoLE_tCut", 
+                [this](const ROOT::RVec<Double_t>& le) {
+                    return filterVector(le, [this](Double_t x) { return x > LE_CUT && x > 0; });
+                }, {"bgoLE"})
             .Define("hodoODsToT", computeToT<32>, {"hodoODsLE", "hodoODsTE"})
             .Define("hodoOUsToT", computeToT<32>, {"hodoOUsLE", "hodoOUsTE"})
             .Define("hodoIDsToT", computeToT<32>, {"hodoIDsLE", "hodoIDsTE"})
@@ -353,14 +375,16 @@ void DataFilter::filterAndSave(const char* inputFile, int last_evt) {
             .Define("hodoIDsCts", countNonZeroToT<32>, {"hodoIDsToT"})
             .Define("hodoIUsCts", countNonZeroToT<32>, {"hodoIUsToT"})
             //.Filter("bgoCts > 1", "BGO Cut")      // uncomment if BGO is used
-            .Define("bgoToT_ActiveIndices", getActiveIndices<64>, {"bgoToT"})
-            .Define("hodoODsToT_ActiveIndices", getActiveIndices<32>, {"hodoODsToT"})
-            .Define("hodoOUsToT_ActiveIndices", getActiveIndices<32>, {"hodoOUsToT"})
-            .Define("hodoIDsToT_ActiveIndices", getActiveIndices<32>, {"hodoIDsToT"})
-            .Define("hodoIUsToT_ActiveIndices", getActiveIndices<32>, {"hodoIUsToT"})
+            .Define("bgo_Channels", getActiveIndices<64>, {"bgoToT"})
+            .Define("hodoODs_Channels", getActiveIndices<32>, {"hodoODsToT"})
+            .Define("hodoOUs_Channels", getActiveIndices<32>, {"hodoOUsToT"})
+            .Define("hodoIDs_Channels", getActiveIndices<32>, {"hodoIDsToT"})
+            .Define("hodoIUs_Channels", getActiveIndices<32>, {"hodoIUsToT"})
             ;
 
     auto nEntriesAfterCuts = filtered_df.Count();
+    double eventsCut = static_cast<double>(*nEntriesAfterCuts);
+    log->info("{} events after cuts", eventsCut);
 
     ROOT::RDF::RSnapshotOptions opts;
     opts.fMode = "update";
@@ -371,29 +395,51 @@ void DataFilter::filterAndSave(const char* inputFile, int last_evt) {
 
 void DataFilter::filterAndSend(const char* inputFile, int last_evt) {
 
+    auto log = Logger::getLogger();
+
     // Set up ZeroMQ Publisher
     zmq::context_t context(1);
     zmq::socket_t socket(context, ZMQ_PUB);
     socket.bind("tcp://*:5557");  // Publisher socket for sending filtered data
 
     // Load ROOT file
-    ROOT::RDataFrame df("tree", inputFile);
+    ROOT::RDataFrame df("RawEventTree", inputFile);
+
+    auto nEntriesBeforeCuts = df.Count();
+    double eventsUncut = static_cast<double>(*nEntriesBeforeCuts);
+    log->info("{} events before cuts", eventsUncut);
 
     // Example filter: select events where tdcTimeTag > 1000
     auto filtered_df = df.Filter("eventID > " + std::to_string(last_evt), "New Events")
-            .Filter("bgoLE < " + std::to_string(LE_CUT), "Time Cut")
+            //.Filter("bgoLE < " + std::to_string(LE_CUT), "Time Cut")
+            .Define("bgoLE_tCut", 
+                [this](const ROOT::RVec<Double_t>& le) {
+                    return filterVector(le, [this](Double_t x) { return x > LE_CUT && x > 0; });
+                }, {"bgoLE"})
             .Define("hodoODsToT", computeToT<32>, {"hodoODsLE", "hodoODsTE"})
             .Define("hodoOUsToT", computeToT<32>, {"hodoOUsLE", "hodoOUsTE"})
             .Define("hodoIDsToT", computeToT<32>, {"hodoIDsLE", "hodoIDsTE"})
             .Define("hodoIUsToT", computeToT<32>, {"hodoIUsLE", "hodoIUsTE"})
-            .Define("bgoToT", computeToT<64>, {"bgoLE, bgoLE"})
+            .Define("bgoToT", computeToT<64>, {"bgoLE", "bgoTE"})
             .Define("bgoCts", countNonZeroToT<64>, {"bgoToT"})
             .Filter(barCoincidence<32>, {"hodoODsToT", "hodoOUsToT"})
-            .Filter(barCoincidence<32>, {"hodoODsToT", "hodoOUsToT"})
-            .Filter("bgoCts > 1", "BGO Cut")
-            .Define("bgoToT_ActiveIndices", getActiveIndices<64>, {"bgoToT"});
+            .Filter(barCoincidence<32>, {"hodoIDsToT", "hodoIUsToT"})
+            .Define("hodoODsCts", countNonZeroToT<32>, {"hodoODsToT"})
+            .Define("hodoOUsCts", countNonZeroToT<32>, {"hodoOUsToT"})
+            .Define("hodoIDsCts", countNonZeroToT<32>, {"hodoIDsToT"})
+            .Define("hodoIUsCts", countNonZeroToT<32>, {"hodoIUsToT"})
+            //.Filter("bgoCts > 1", "BGO Cut")      // uncomment if BGO is used
+            .Define("bgo_Channels", getActiveIndices<64>, {"bgoToT"})
+            .Define("hodoODs_Channels", getActiveIndices<32>, {"hodoODsToT"})
+            .Define("hodoOUs_Channels", getActiveIndices<32>, {"hodoOUsToT"})
+            .Define("hodoIDs_Channels", getActiveIndices<32>, {"hodoIDsToT"})
+            .Define("hodoIUs_Channels", getActiveIndices<32>, {"hodoIUsToT"})
+            ;
 
     auto nEntriesAfterCuts = filtered_df.Count();
+    double eventsCut = static_cast<double>(*nEntriesAfterCuts);
+    log->info("{} events after cuts", eventsCut);
+
 
     // Process filtered results
     filtered_df.Foreach([&socket](uint32_t eventID, uint32_t tdcTimeTag, const std::vector<int>& activeBGO) {
@@ -407,7 +453,7 @@ void DataFilter::filterAndSend(const char* inputFile, int last_evt) {
         zmq::message_t message(ss.str().c_str(), ss.str().size());
         socket.send(message, zmq::send_flags::none);
 
-    }, {"eventID", "tdcTimeTag", "bgoToT_ActiveIndices"});
+    }, {"eventID", "tdcTimeTag", "bgo_Channels"});
 
     std::cout << "Filtered data sent to ZeroMQ." << std::endl;
 }

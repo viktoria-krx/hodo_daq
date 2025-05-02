@@ -205,7 +205,7 @@ bool DataDecoder::fillData(int channel, int rawchannel, int edge, int32_t time, 
     }
 
 
-    log->debug("Channel: {0:d} | Edge: {1:d} | Time: {2:d} | Type: {3:d}", channel, edge, time, (int)type);
+    // log->debug("Channel: {0:d} | Edge: {1:d} | Time: {2:d} | Type: {3:d}", channel, edge, time, (int)type);
     assignTime(event, channel, edge, time, type);
     return true;
 }
@@ -241,14 +241,14 @@ void DataDecoder::processEvent(const char bankName[4], Event dataevent) {
 
                 event.tdcID = tdcID;
 
-                log->debug("[TDC Hit] Bank: {0} | Raw Ch: {1:d} | TDC ID: {2} | Ch: {3:d} | Time: {4:d}", bankN, rawch, tdcID, ch, data_time);
+                // log->debug("[TDC Hit] Bank: {0} | Raw Ch: {1:d} | TDC ID: {2} | Ch: {3:d} | Time: {4:d}", bankN, rawch, tdcID, ch, data_time);
                 
             } else if (IS_TDC_HEADER(word)) {
-                log->debug("[TDC Header] Bank: {}", bankN);
+                // log->debug("[TDC Header] Bank: {}", bankN);
             } else if (IS_TRIGGER_TIME_TAG(word)) {
 
                 timetag = DATA_MEAS(word);
-                log->debug("[TDC ETTT] Bank: {}", bankN);
+                // log->debug("[TDC ETTT] Bank: {}", bankN);
 
             } else if (IS_TDC_TRAILER(word)) {
 
@@ -258,13 +258,13 @@ void DataDecoder::processEvent(const char bankName[4], Event dataevent) {
                 }
                 event.eventID = DATA_EVENT_ID(word) + reset_ctr[tdcID] * 0x1000 ;
                 last_evt[tdcID] = event.eventID;
-                log->debug("[TDC Trailer] Bank: {} | Event ID: {}", bankN, event.eventID);
+                // log->debug("[TDC Trailer] Bank: {} | Event ID: {}", bankN, event.eventID);
             } else if (IS_GLOBAL_HEADER(word)) {
-                log->debug("[Global Header]");
+                // log->debug("[Global Header]");
             } else if (IS_GLOBAL_TRAILER(word)) {
 
                 geo = ETTT_GEO(word);
-                log->debug("[Global Trailer] | GEO: {} | TimeTag: {:d}", geo, timetag*32+geo);
+                // log->debug("[Global Trailer] | GEO: {} | TimeTag: {:d}", geo, timetag*32+geo);
                 
                 event.tdcTimeTag = timetag*32+geo;
                 event.cuspRunNumber = cuspValue;
@@ -293,7 +293,7 @@ void DataDecoder::processEvent(const char bankName[4], Event dataevent) {
             
             secTime = dataevent.timestamp;
             event.timestamp = secTime;
-            log->debug("[CUSP Event] Value: {0:d} | Time: {1:d}", cuspValue, secTime);
+            // log->debug("[CUSP Event] Value: {0:d} | Time: {1:d}", cuspValue, secTime);
             // tree->Fill();
             // event.reset();
         }
@@ -306,7 +306,7 @@ void DataDecoder::processEvent(const char bankName[4], Event dataevent) {
 // Write TTree to ROOT File
 void DataDecoder::writeTree() {
     rootFile->Write();
-    std::cout << "ROOT file saved.\n";
+    //std::cout << "ROOT file saved.\n";
 }
 
 
