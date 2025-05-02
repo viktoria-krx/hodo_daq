@@ -6,91 +6,93 @@
 #include "logger.hh"
 
 
+
 // Constructor: Initializes ROOT File & TTree
 DataDecoder::DataDecoder(const std::string& outputFile) {
     rootFile = new TFile(outputFile.c_str(), "RECREATE");
     tree = new TTree("RawEventTree", "TTree holding the raw Hodoscope Data");
 
     // Define Tree Branches
-    tree->Branch("eventID", &event.eventID, "eventID/i");
-    tree->Branch("timestamp", &event.timestamp, "timestamp/D");
-    tree->Branch("cuspRunNumber", &event.cuspRunNumber, "cuspRunNumber/i");
-    tree->Branch("gate", &event.gate, "gate/O");
-    tree->Branch("tdcTimeTag", &event.tdcTimeTag, "tdcTimeTag/D");
-    tree->Branch("trgLE", &event.trgLE, "trgLE[4]/D");
-    tree->Branch("trgTE", &event.trgTE, "trgTE[4]/D");
+    tree->Branch("eventID", &event.eventID);
+    tree->Branch("timestamp", &event.timestamp);
+    tree->Branch("cuspRunNumber", &event.cuspRunNumber);
+    tree->Branch("gate", &event.gate);
+    tree->Branch("tdcTimeTag", &event.tdcTimeTag);
+    tree->Branch("trgLE", &event.trgLE);
+    tree->Branch("trgTE", &event.trgTE);
 
-    tree->Branch("hodoIDsLE", &event.hodoIDsLE, "hodoIDsLE[32]/D");     // Inner Downstream Leading Edges
-    tree->Branch("hodoIUsLE", &event.hodoIUsLE, "hodoIUsLE[32]/D");     // Inner Upstream Leading Edges
-    tree->Branch("hodoODsLE", &event.hodoODsLE, "hodoODsLE[32]/D");     // Outer Downstream Leading Edges
-    tree->Branch("hodoOUsLE", &event.hodoOUsLE, "hodoOUsLE[32]/D");     // Outer Upstream Leading Edges
-    tree->Branch("hodoIDsTE", &event.hodoIDsTE, "hodoIDsTE[32]/D");     // Inner Downstream Trailing Edges
-    tree->Branch("hodoIUsTE", &event.hodoIUsTE, "hodoIUsTE[32]/D");     // Inner Upstream Trailing Edges
-    tree->Branch("hodoODsTE", &event.hodoODsTE, "hodoODsTE[32]/D");     // Outer Downstream Trailing Edges
-    tree->Branch("hodoOUsTE", &event.hodoOUsTE, "hodoOUsTE[32]/D");     // Outer Upstream Trailing Edges
+    tree->Branch("hodoIDsLE", &event.hodoIDsLE);     // Inner Downstream Leading Edges
+    tree->Branch("hodoIUsLE", &event.hodoIUsLE);     // Inner Upstream Leading Edges
+    tree->Branch("hodoODsLE", &event.hodoODsLE);     // Outer Downstream Leading Edges
+    tree->Branch("hodoOUsLE", &event.hodoOUsLE);     // Outer Upstream Leading Edges
+    tree->Branch("hodoIDsTE", &event.hodoIDsTE);     // Inner Downstream Trailing Edges
+    tree->Branch("hodoIUsTE", &event.hodoIUsTE);     // Inner Upstream Trailing Edges
+    tree->Branch("hodoODsTE", &event.hodoODsTE);     // Outer Downstream Trailing Edges
+    tree->Branch("hodoOUsTE", &event.hodoOUsTE);     // Outer Upstream Trailing Edges
     // tree->Branch("hodoIDsToT", &event.hodoIDsToT, "hodoIDsToT[32]/D");     // Inner Downstream Time over Threshold
     // tree->Branch("hodoIUsToT", &event.hodoIUsToT, "hodoIUsTEoT[32]/D");     // Inner Upstream Time over Threshold
     // tree->Branch("hodoODsToT", &event.hodoODsToT, "hodoODsToT[32]/D");     // Outer Downstream Time over Threshold
     // tree->Branch("hodoOUsToT", &event.hodoOUsToT, "hodoOUsToT[32]/D");     // Outer Upstream Time over Threshold
 
-    tree->Branch("bgoLE", &event.bgoLE, "bgoLE[64]/D");     // BGO Leading Edges
-    tree->Branch("bgoTE", &event.bgoTE, "bgoTE[64]/D");     // BGO Trailing Edges
+    tree->Branch("bgoLE", &event.bgoLE);     // BGO Leading Edges
+    tree->Branch("bgoTE", &event.bgoTE);     // BGO Trailing Edges
     // tree->Branch("bgoToT", &event.bgoToT, "bgoToT[64]/D");  // BGO Time over Threshold
 
-    tree->Branch("tileILE", &event.tileILE, "tileILE[120]/D");     // Tile Inner Leading Edges
-    tree->Branch("tileITE", &event.tileITE, "tileITE[120]/D");     // Tile Inner Trailing Edges
-    tree->Branch("tileOLE", &event.tileOLE, "tileOLE[120]/D");     // Tile Outer Leading Edges
-    tree->Branch("tileOTE", &event.tileOTE, "tileOTE[120]/D");     // Tile Outer Trailing Edges
+    tree->Branch("tileILE", &event.tileILE);     // Tile Inner Leading Edges
+    tree->Branch("tileITE", &event.tileITE);     // Tile Inner Trailing Edges
+    tree->Branch("tileOLE", &event.tileOLE);     // Tile Outer Leading Edges
+    tree->Branch("tileOTE", &event.tileOTE);     // Tile Outer Trailing Edges
     // tree->Branch("tileIToT", &event.tileIToT, "tileIToT[120]/D");     // Tile Inner Time over Threshold
     // tree->Branch("tileOToT", &event.tileOToT, "tileOToT[120]/D");     // Tile Outer Time over Threshold
 
-    tree->Branch("tdcID", &event.tdcID, "tdcID/i");
+    tree->Branch("tdcID", &event.tdcID);
     // tree->Branch("tdcChannel", &event.tdcChannel, "tdcChannel/i");
     
 }
+// // Constructor: Initializes ROOT File & TTree
+// DataDecoder::DataDecoder(const std::string& outputFile) {
+//     rootFile = new TFile(outputFile.c_str(), "RECREATE");
+//     tree = new TTree("RawEventTree", "TTree holding the raw Hodoscope Data");
 
-// Constructor definition
-TDCEvent::TDCEvent() {
-    reset();
-}
+//     // Define Tree Branches
+//     tree->Branch("eventID", &event.eventID, "eventID/i");
+//     tree->Branch("timestamp", &event.timestamp, "timestamp/D");
+//     tree->Branch("cuspRunNumber", &event.cuspRunNumber, "cuspRunNumber/i");
+//     tree->Branch("gate", &event.gate, "gate/O");
+//     tree->Branch("tdcTimeTag", &event.tdcTimeTag, "tdcTimeTag/D");
+//     tree->Branch("trgLE", &event.trgLE, "trgLE[4]/D");
+//     tree->Branch("trgTE", &event.trgTE, "trgTE[4]/D");
 
-// Reset function definition
-void TDCEvent::reset() {
-    std::fill_n(trgLE, 4, std::nan(""));
-    std::fill_n(trgTE, 4, std::nan(""));
+//     tree->Branch("hodoIDsLE", &event.hodoIDsLE, "hodoIDsLE[32]/D");     // Inner Downstream Leading Edges
+//     tree->Branch("hodoIUsLE", &event.hodoIUsLE, "hodoIUsLE[32]/D");     // Inner Upstream Leading Edges
+//     tree->Branch("hodoODsLE", &event.hodoODsLE, "hodoODsLE[32]/D");     // Outer Downstream Leading Edges
+//     tree->Branch("hodoOUsLE", &event.hodoOUsLE, "hodoOUsLE[32]/D");     // Outer Upstream Leading Edges
+//     tree->Branch("hodoIDsTE", &event.hodoIDsTE, "hodoIDsTE[32]/D");     // Inner Downstream Trailing Edges
+//     tree->Branch("hodoIUsTE", &event.hodoIUsTE, "hodoIUsTE[32]/D");     // Inner Upstream Trailing Edges
+//     tree->Branch("hodoODsTE", &event.hodoODsTE, "hodoODsTE[32]/D");     // Outer Downstream Trailing Edges
+//     tree->Branch("hodoOUsTE", &event.hodoOUsTE, "hodoOUsTE[32]/D");     // Outer Upstream Trailing Edges
+//     // tree->Branch("hodoIDsToT", &event.hodoIDsToT, "hodoIDsToT[32]/D");     // Inner Downstream Time over Threshold
+//     // tree->Branch("hodoIUsToT", &event.hodoIUsToT, "hodoIUsTEoT[32]/D");     // Inner Upstream Time over Threshold
+//     // tree->Branch("hodoODsToT", &event.hodoODsToT, "hodoODsToT[32]/D");     // Outer Downstream Time over Threshold
+//     // tree->Branch("hodoOUsToT", &event.hodoOUsToT, "hodoOUsToT[32]/D");     // Outer Upstream Time over Threshold
 
-    std::fill_n(hodoIDsLE, 32, std::nan(""));
-    std::fill_n(hodoIUsLE, 32, std::nan(""));
-    std::fill_n(hodoODsLE, 32, std::nan(""));
-    std::fill_n(hodoOUsLE, 32, std::nan(""));
-    std::fill_n(hodoIDsTE, 32, std::nan(""));
-    std::fill_n(hodoIUsTE, 32, std::nan(""));
-    std::fill_n(hodoODsTE, 32, std::nan(""));
-    std::fill_n(hodoOUsTE, 32, std::nan(""));
-    // std::fill_n(hodoIDsToT, 32, std::nan(""));
-    // std::fill_n(hodoIUsToT, 32, std::nan(""));
-    // std::fill_n(hodoODsToT, 32, std::nan(""));
-    // std::fill_n(hodoOUsToT, 32, std::nan(""));
+//     tree->Branch("bgoLE", &event.bgoLE, "bgoLE[64]/D");     // BGO Leading Edges
+//     tree->Branch("bgoTE", &event.bgoTE, "bgoTE[64]/D");     // BGO Trailing Edges
+//     // tree->Branch("bgoToT", &event.bgoToT, "bgoToT[64]/D");  // BGO Time over Threshold
 
-    std::fill_n(bgoLE, 64, std::nan(""));
-    std::fill_n(bgoTE, 64, std::nan(""));
-    // std::fill_n(bgoToT, 64, std::nan(""));
+//     tree->Branch("tileILE", &event.tileILE, "tileILE[120]/D");     // Tile Inner Leading Edges
+//     tree->Branch("tileITE", &event.tileITE, "tileITE[120]/D");     // Tile Inner Trailing Edges
+//     tree->Branch("tileOLE", &event.tileOLE, "tileOLE[120]/D");     // Tile Outer Leading Edges
+//     tree->Branch("tileOTE", &event.tileOTE, "tileOTE[120]/D");     // Tile Outer Trailing Edges
+//     // tree->Branch("tileIToT", &event.tileIToT, "tileIToT[120]/D");     // Tile Inner Time over Threshold
+//     // tree->Branch("tileOToT", &event.tileOToT, "tileOToT[120]/D");     // Tile Outer Time over Threshold
 
-    std::fill_n(tileILE, 120, std::nan(""));
-    std::fill_n(tileITE, 120, std::nan(""));
-    // std::fill_n(tileIToT, 120, std::nan(""));
-    std::fill_n(tileOLE, 120, std::nan(""));
-    std::fill_n(tileOTE, 120, std::nan(""));
-    // std::fill_n(tileOToT, 120, std::nan(""));
+//     tree->Branch("tdcID", &event.tdcID, "tdcID/i");
+//     // tree->Branch("tdcChannel", &event.tdcChannel, "tdcChannel/i");
+    
+// }
 
-    eventID = -1;
-    timestamp = -1;
-    cuspRunNumber = -1;
-    gate = std::nan("");
-    tdcTimeTag = std::nan("");
-    tdcID = -1;
 
-}
 
 // Destructor: Writes and Closes ROOT File
 DataDecoder::~DataDecoder() {
@@ -160,14 +162,14 @@ void assignTime(TDCEvent &event, int channel, int edge, int32_t time, DetectorTy
 
     // Select correct map based on detector type
     switch (type) {
-        case HODO_IDs: storage = (edge == 0) ? event.hodoIDsTE : event.hodoIDsLE; break;
-        case HODO_IUs: storage = (edge == 0) ? event.hodoIUsTE : event.hodoIUsLE; break;
-        case TILE_IT:  storage = (edge == 0) ? event.tileITE  : event.tileILE; break;
-        case HODO_ODs: storage = (edge == 0) ? event.hodoODsTE : event.hodoODsLE; break;
-        case HODO_OUs: storage = (edge == 0) ? event.hodoOUsTE : event.hodoOUsLE; break;
-        case TILE_OT:  storage = (edge == 0) ? event.tileOTE  : event.tileOLE; break;
-        case BGO:      storage = (edge == 0) ? event.bgoTE    : event.bgoLE; break;
-        case TRG:      storage = (edge == 0) ? event.trgTE    : event.trgLE; break;
+        case HODO_IDs: storage = (edge == 0) ? &event.hodoIDsTE[channel] : &event.hodoIDsLE[channel]; break;
+        case HODO_IUs: storage = (edge == 0) ? &event.hodoIUsTE[channel] : &event.hodoIUsLE[channel]; break;
+        case TILE_IT:  storage = (edge == 0) ? &event.tileITE[channel]  : &event.tileILE[channel]; break;
+        case HODO_ODs: storage = (edge == 0) ? &event.hodoODsTE[channel] : &event.hodoODsLE[channel]; break;
+        case HODO_OUs: storage = (edge == 0) ? &event.hodoOUsTE[channel] : &event.hodoOUsLE[channel]; break;
+        case TILE_OT:  storage = (edge == 0) ? &event.tileOTE[channel]  : &event.tileOLE[channel]; break;
+        case BGO:      storage = (edge == 0) ? &event.bgoTE[channel]    : &event.bgoLE[channel]; break;
+        case TRG:      storage = (edge == 0) ? &event.trgTE[channel]    : &event.trgLE[channel]; break;
         case UNKNOWN: 
             if (channel == 600) { event.gate = true; }
             return;
@@ -177,7 +179,7 @@ void assignTime(TDCEvent &event, int channel, int edge, int32_t time, DetectorTy
 
     // Assign time only if it's the first entry (`NaN`) or a smaller value
     if (std::isnan(storage[channel]) || time < storage[channel]) {
-        storage[channel] = time;
+        *storage = time;
     }
 }
 

@@ -37,3 +37,21 @@ add_executable(hodo_analysis analysis.cc ${sources})
 target_link_libraries(hodo_analysis spdlog::spdlog)
 target_link_libraries(hodo_analysis cppzmq)
 target_link_libraries(hodo_analysis ${ROOT_LIBRARIES})
+
+target_include_directories(hodo_analysis PRIVATE ${CMAKE_CURRENT_INCLUDE_DIR})
+# then generate dictionaries and add them as a dependency of the executable (via the MODULE parameter):
+#ROOT_GENERATE_DICTIONARY(TDCEvent tdcEvent.hh MODULE hodo_analysis LINKDEF LinkDef.h)
+
+# Generate dictionary source files from the header
+ROOT_GENERATE_DICTIONARY(TDCEventDict
+    ${PROJECT_SOURCE_DIR}/include/tdcEvent.hh
+    LINKDEF ${PROJECT_SOURCE_DIR}/include/LinkDef.h
+)
+
+# Create a shared library from the generated dictionary source
+add_library(TDCEventDictLib SHARED TDCEventDict.cxx)
+target_link_libraries(TDCEventDictLib ${ROOT_LIBRARIES})
+target_include_directories(TDCEventDictLib PRIVATE ${PROJECT_SOURCE_DIR}/include)
+
+# Link this dictionary lib into your executable
+target_link_libraries(hodo_analysis TDCEventDictLib)

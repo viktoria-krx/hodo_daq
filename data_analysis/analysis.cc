@@ -171,6 +171,7 @@ void runOfflineAnalysis(int runNumber) {
 
     DataFilter filter;
     filter.fileSorter(getRootFilename(runNumber).c_str(), 0, getDataFilename(runNumber).c_str());
+    filter.filterAndSave(getDataFilename(runNumber).c_str(), 0);
 
 }
 

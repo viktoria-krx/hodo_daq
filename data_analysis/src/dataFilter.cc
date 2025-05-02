@@ -9,9 +9,9 @@
 
 
 template <size_t N>
-std::array<Double_t, N> computeToT(const std::array<Double_t, N>& le, 
-                                   const std::array<Double_t, N>& te) {
-    std::array<Double_t, N> tot{};
+ROOT::VecOps::RVec<Double_t> computeToT(const ROOT::RVec<Double_t>& le, 
+                                        const ROOT::RVec<Double_t>& te) {
+    ROOT::VecOps::RVec<Double_t> tot(N);
     for (size_t i = 0; i < N; ++i) {
         tot[i] = (le[i] > 0 && te[i] > 0) ? (te[i] - le[i]) : NAN;
     }
@@ -19,24 +19,31 @@ std::array<Double_t, N> computeToT(const std::array<Double_t, N>& le,
 }
 
 template <size_t N>
-bool barCoincidence(const std::array<Double_t, N>& ds, 
-                                       const std::array<Double_t, N>& us) {
-    std::array<bool, N> bc{};
-    bool bc_sum = false;
+bool barCoincidence(const ROOT::RVec<Double_t>& ds, 
+                    const ROOT::RVec<Double_t>& us) {
+    bool coincidence = false;
     for (size_t i = 0; i < N; ++i) {
-        bc[i] = (ds[i] > 0 && us[i] > 0) ? true : false;
-        bc_sum = bc_sum || bc[i];
+        if (ds[i] > 0 && us[i] > 0) {
+            coincidence = true;
+            break;
+        }
     }
-    return bc_sum;
+    return coincidence;
 }
 
 template <size_t N>
-int countNonZeroToT(const std::array<Double_t, N>& tot) {
-    return std::count_if(tot.begin(), tot.end(), [](Double_t x) { return x > 0; });
+int countNonZeroToT(const ROOT::RVec<Double_t>& tot) {
+    int count = 0;
+    for (size_t i = 0; i < N; ++i) {
+        if (tot[i] > 0) {
+            ++count;
+        }
+    }
+    return count;
 }
 
 template <size_t N>
-std::vector<int> getActiveIndices(const std::array<Double_t, N>& arr) {
+std::vector<int> getActiveIndices(const ROOT::RVec<Double_t>& arr) {
     std::vector<int> indices;
     for (size_t i = 0; i < N; ++i) {
         if (!std::isnan(arr[i]) && arr[i] > 0) {
@@ -47,7 +54,7 @@ std::vector<int> getActiveIndices(const std::array<Double_t, N>& arr) {
 }
 
 template <size_t N>
-void mergeIfUnset(Double_t (&out)[N], const Double_t (&in)[N]) {
+void mergeIfUnset(std::array<Double_t, N>& out, const std::array<Double_t, N>& in) {
     for (size_t i = 0; i < N; ++i) {
         if (std::isnan(out[i]) && !std::isnan(in[i])) {
             out[i] = in[i];
@@ -56,28 +63,28 @@ void mergeIfUnset(Double_t (&out)[N], const Double_t (&in)[N]) {
 }
 
 template <size_t N>
-void mergeIfUnset(uint32_t (&out)[N], const uint32_t (&in)[N]) {
+void mergeIfUnset(std::array<uint32_t, N>& out, const std::array<uint32_t, N>& in) {
     for (size_t i = 0; i < N; ++i) {
-        if (std::isnan(out[i]) && !std::isnan(in[i])) {
+        if (out[i] == UINT32_UNSET && in[i] != UINT32_UNSET) {
             out[i] = in[i];
         }
     }
 }
 
-void mergeIfUnset(uint32_t (&out), const uint32_t (&in)) {
+void mergeIfUnset(uint32_t& out, const uint32_t& in) {
+    if (out == UINT32_UNSET && in != UINT32_UNSET) {
+        out = in;
+    }
+}
+
+void mergeIfUnset(Double_t& out, const Double_t& in) {
     if (std::isnan(out) && !std::isnan(in)) {
         out = in;
     }
 }
 
-void mergeIfUnset(Double_t (&out), const Double_t (&in)) {
-    if (std::isnan(out) && !std::isnan(in)) {
-        out = in;
-    }
-}
-
-void mergeIfUnset(Bool_t (&out), const Bool_t (&in)) {
-    if (std::isnan(out) && !std::isnan(in)) {
+void mergeIfUnset(Bool_t& out, const Bool_t& in) {
+    if (out == BOOL_UNSET && in != BOOL_UNSET) {
         out = in;
     }
 }
@@ -85,7 +92,7 @@ void mergeIfUnset(Bool_t (&out), const Bool_t (&in)) {
 void DataFilter::fileSorter(const char* inputFile, int last_evt, const char* outputFile) {
     TFile* file = TFile::Open(inputFile);
     TTree* tree = (TTree*)file->Get("RawEventTree");
-
+    
     // New output file
     TFile* output;
     if (last_evt == 0){
@@ -94,7 +101,7 @@ void DataFilter::fileSorter(const char* inputFile, int last_evt, const char* out
         output = new TFile(outputFile, "UPDATE");
     }
     
-    TTree* newTree = (TTree*)output->Get("EventTree");
+    TTree* newTree = (TTree*)output->Get("RawEventTree");
 
     TDCEvent eventIn;
 
@@ -138,41 +145,41 @@ void DataFilter::fileSorter(const char* inputFile, int last_evt, const char* out
     TDCEvent eventOut;
     
     if (!newTree) {
-        newTree = new TTree("eventTree", "TDCs Merged");
+        newTree = new TTree("RawEventTree", "TDCs Merged");
 
-        newTree->Branch("eventID",        &eventOut.eventID);
-        newTree->Branch("timestamp",      &eventOut.timestamp);
-        newTree->Branch("cuspRunNumber",  &eventOut.cuspRunNumber);
-        newTree->Branch("gate",           &eventOut.gate);
-        newTree->Branch("tdcTimeTag",     &eventOut.tdcTimeTag);
-        newTree->Branch("trgLE",          &eventOut.trgLE);
-        newTree->Branch("trgTE",          &eventOut.trgTE);
+        newTree->Branch("eventID",        &eventOut.eventID,            "eventID/i");
+        newTree->Branch("timestamp",      &eventOut.timestamp,          "timestamp/D");
+        newTree->Branch("cuspRunNumber",  &eventOut.cuspRunNumber,      "cuspRunNumber/i"  );
+        newTree->Branch("gate",           &eventOut.gate,               "gate/O");
+        newTree->Branch("tdcTimeTag",     &eventOut.tdcTimeTag,         "tdcTimeTag/D");
+        newTree->Branch("trgLE",          eventOut.trgLE.data(),        "trgLE[4]/D");
+        newTree->Branch("trgTE",          eventOut.trgTE.data(),        "trgTE[4]/D");
 
-        newTree->Branch("hodoIDsLE",      &eventOut.hodoIDsLE);
-        newTree->Branch("hodoIUsLE",      &eventOut.hodoIUsLE);
-        newTree->Branch("hodoODsLE",      &eventOut.hodoODsLE);
-        newTree->Branch("hodoOUsLE",      &eventOut.hodoOUsLE);
-        newTree->Branch("hodoIDsTE",      &eventOut.hodoIDsTE);
-        newTree->Branch("hodoIUsTE",      &eventOut.hodoIUsTE);
-        newTree->Branch("hodoODsTE",      &eventOut.hodoODsTE);
-        newTree->Branch("hodoOUsTE",      &eventOut.hodoOUsTE);
+        newTree->Branch("hodoIDsLE",      eventOut.hodoIDsLE.data(),    "hodoIDsLE[32]/D");
+        newTree->Branch("hodoIUsLE",      eventOut.hodoIUsLE.data(),    "hodoIUsLE[32]/D");
+        newTree->Branch("hodoODsLE",      eventOut.hodoODsLE.data(),    "hodoODsLE[32]/D");
+        newTree->Branch("hodoOUsLE",      eventOut.hodoOUsLE.data(),    "hodoOUsLE[32]/D");
+        newTree->Branch("hodoIDsTE",      eventOut.hodoIDsTE.data(),    "hodoIDsTE[32]/D");
+        newTree->Branch("hodoIUsTE",      eventOut.hodoIUsTE.data(),    "hodoIUsTE[32]/D");
+        newTree->Branch("hodoODsTE",      eventOut.hodoODsTE.data(),    "hodoODsTE[32]/D");
+        newTree->Branch("hodoOUsTE",      eventOut.hodoOUsTE.data(),    "hodoOUsTE[32]/D");
         // newTree->Branch("hodoIDsToT",     &eventOut.hodoIDsToT);
         // newTree->Branch("hodoIUsToT",     &eventOut.hodoIUsToT);
         // newTree->Branch("hodoODsToT",     &eventOut.hodoODsToT);
         // newTree->Branch("hodoOUsToT",     &eventOut.hodoOUsToT);
 
-        newTree->Branch("bgoLE",          &eventOut.bgoLE);
-        newTree->Branch("bgoTE",          &eventOut.bgoTE);
+        newTree->Branch("bgoLE",          eventOut.bgoLE.data(),        "bgoLE[64]/D");
+        newTree->Branch("bgoTE",          eventOut.bgoTE.data(),        "bgoTE[64]/D");
         // newTree->Branch("bgoToT",         &eventOut.bgoToT);
 
-        newTree->Branch("tileILE",        &eventOut.tileILE);
-        newTree->Branch("tileITE",        &eventOut.tileITE);
+        newTree->Branch("tileILE",        eventOut.tileILE.data(),      "tileILE[120]/D");
+        newTree->Branch("tileITE",        eventOut.tileITE.data(),      "tileITE[120]/D");
         // newTree->Branch("tileIToT",       &eventOut.tileIToT);
-        newTree->Branch("tileOLE",        &eventOut.tileOLE);
-        newTree->Branch("tileOTE",        &eventOut.tileOTE);
+        newTree->Branch("tileOLE",        eventOut.tileOLE.data(),      "tileOLE[120]/D");
+        newTree->Branch("tileOTE",        eventOut.tileOTE.data(),      "tileOTE[120]/D");
         // newTree->Branch("tileOToT",       &eventOut.tileOToT);
 
-        newTree->Branch("tdcID",          &eventOut.tdcID);
+        newTree->Branch("tdcID",          &eventOut.tdcID,              "tdcID[4]/i");
         // newTree->Branch("tdcChannel",     &eventOut.tdcChannel);
         // newTree->Branch("tdcTime",        &eventOut.tdcTime);
 
@@ -182,31 +189,31 @@ void DataFilter::fileSorter(const char* inputFile, int last_evt, const char* out
         newTree->SetBranchAddress("cuspRunNumber",  &eventOut.cuspRunNumber);
         newTree->SetBranchAddress("gate",           &eventOut.gate);
         newTree->SetBranchAddress("tdcTimeTag",     &eventOut.tdcTimeTag);
-        newTree->SetBranchAddress("trgLE",          &eventOut.trgLE);
-        newTree->SetBranchAddress("trgTE",          &eventOut.trgTE);
+        newTree->SetBranchAddress("trgLE",          eventOut.trgLE.data());
+        newTree->SetBranchAddress("trgTE",          eventOut.trgTE.data());
 
-        newTree->SetBranchAddress("hodoIDsLE",      &eventOut.hodoIDsLE);
-        newTree->SetBranchAddress("hodoIUsLE",      &eventOut.hodoIUsLE);
-        newTree->SetBranchAddress("hodoODsLE",      &eventOut.hodoODsLE);
-        newTree->SetBranchAddress("hodoOUsLE",      &eventOut.hodoOUsLE);
-        newTree->SetBranchAddress("hodoIDsTE",      &eventOut.hodoIDsTE);
-        newTree->SetBranchAddress("hodoIUsTE",      &eventOut.hodoIUsTE);
-        newTree->SetBranchAddress("hodoODsTE",      &eventOut.hodoODsTE);
-        newTree->SetBranchAddress("hodoOUsTE",      &eventOut.hodoOUsTE);
+        newTree->SetBranchAddress("hodoIDsLE",      eventOut.hodoIDsLE.data());
+        newTree->SetBranchAddress("hodoIUsLE",      eventOut.hodoIUsLE.data());
+        newTree->SetBranchAddress("hodoODsLE",      eventOut.hodoODsLE.data());
+        newTree->SetBranchAddress("hodoOUsLE",      eventOut.hodoOUsLE.data());
+        newTree->SetBranchAddress("hodoIDsTE",      eventOut.hodoIDsTE.data());
+        newTree->SetBranchAddress("hodoIUsTE",      eventOut.hodoIUsTE.data());
+        newTree->SetBranchAddress("hodoODsTE",      eventOut.hodoODsTE.data());
+        newTree->SetBranchAddress("hodoOUsTE",      eventOut.hodoOUsTE.data());
         // newTree->SetBranchAddress("hodoIDsToT",     &eventOut.hodoIDsToT);
         // newTree->SetBranchAddress("hodoIUsToT",     &eventOut.hodoIUsToT);
         // newTree->SetBranchAddress("hodoODsToT",     &eventOut.hodoODsToT);
         // newTree->SetBranchAddress("hodoOUsToT",     &eventOut.hodoOUsToT);
 
-        newTree->SetBranchAddress("bgoLE",          &eventOut.bgoLE);
-        newTree->SetBranchAddress("bgoTE",          &eventOut.bgoTE);
+        newTree->SetBranchAddress("bgoLE",          eventOut.bgoLE.data());
+        newTree->SetBranchAddress("bgoTE",          eventOut.bgoTE.data());
         // newTree->SetBranchAddress("bgoToT",         &eventOut.bgoToT);
 
-        newTree->SetBranchAddress("tileILE",        &eventOut.tileILE);
-        newTree->SetBranchAddress("tileITE",        &eventOut.tileITE);
+        newTree->SetBranchAddress("tileILE",        eventOut.tileILE.data());
+        newTree->SetBranchAddress("tileITE",        eventOut.tileITE.data());
         // newTree->SetBranchAddress("tileIToT",       &eventOut.tileIToT);
-        newTree->SetBranchAddress("tileOLE",        &eventOut.tileOLE);
-        newTree->SetBranchAddress("tileOTE",        &eventOut.tileOTE);
+        newTree->SetBranchAddress("tileOLE",        eventOut.tileOLE.data());
+        newTree->SetBranchAddress("tileOTE",        eventOut.tileOTE.data());
         // newTree->SetBranchAddress("tileOToT",       &eventOut.tileOToT);
 
         newTree->SetBranchAddress("tdcID",          &eventOut.tdcID);
@@ -225,8 +232,6 @@ void DataFilter::fileSorter(const char* inputFile, int last_evt, const char* out
     for (Int_t evt = last_evt; evt < nr_evts; evt++){
         eventOut.reset();
 
-        bool validTrigger = false;
-
         for (Int_t tdc = 0; tdc < 4; tdc++){
 
             Int_t j = (Int_t) tree->GetEntryNumberWithIndex(evt, tdc);
@@ -242,6 +247,7 @@ void DataFilter::fileSorter(const char* inputFile, int last_evt, const char* out
             mergeIfUnset(eventOut.cuspRunNumber, eventIn.cuspRunNumber);
             mergeIfUnset(eventOut.gate,          eventIn.gate);
             mergeIfUnset(eventOut.tdcTimeTag,    eventIn.tdcTimeTag);
+            mergeIfUnset(eventOut.tdcID,         eventIn.tdcID);
 
             switch (tdc) {
                 case 0:
@@ -249,6 +255,10 @@ void DataFilter::fileSorter(const char* inputFile, int last_evt, const char* out
                     mergeIfUnset(eventOut.hodoODsTE, eventIn.hodoODsTE);
                     mergeIfUnset(eventOut.hodoOUsLE, eventIn.hodoOUsLE);
                     mergeIfUnset(eventOut.hodoOUsTE, eventIn.hodoOUsTE);
+                    mergeIfUnset(eventOut.hodoIDsLE, eventIn.hodoIDsLE);
+                    mergeIfUnset(eventOut.hodoIDsTE, eventIn.hodoIDsTE);
+                    mergeIfUnset(eventOut.hodoIUsLE, eventIn.hodoIUsLE);
+                    mergeIfUnset(eventOut.hodoIUsTE, eventIn.hodoIUsTE);
                     mergeIfUnset(eventOut.tileOLE,   eventIn.tileOLE);
                     mergeIfUnset(eventOut.tileOTE,   eventIn.tileOTE);
                     break;
@@ -258,6 +268,10 @@ void DataFilter::fileSorter(const char* inputFile, int last_evt, const char* out
                     mergeIfUnset(eventOut.hodoODsTE, eventIn.hodoODsTE);
                     mergeIfUnset(eventOut.hodoOUsLE, eventIn.hodoOUsLE);
                     mergeIfUnset(eventOut.hodoOUsTE, eventIn.hodoOUsTE);
+                    mergeIfUnset(eventOut.hodoIDsLE, eventIn.hodoIDsLE);
+                    mergeIfUnset(eventOut.hodoIDsTE, eventIn.hodoIDsTE);
+                    mergeIfUnset(eventOut.hodoIUsLE, eventIn.hodoIUsLE);
+                    mergeIfUnset(eventOut.hodoIUsTE, eventIn.hodoIUsTE);
                     mergeIfUnset(eventOut.tileOLE,   eventIn.tileOLE);
                     mergeIfUnset(eventOut.tileOTE,   eventIn.tileOTE);
                     break;
@@ -273,9 +287,9 @@ void DataFilter::fileSorter(const char* inputFile, int last_evt, const char* out
                     break;
             }
 
-
         }
 
+        convertTime(eventOut);
         newTree->Fill();
 
     }
@@ -286,6 +300,74 @@ void DataFilter::fileSorter(const char* inputFile, int last_evt, const char* out
 
 }
 
+void DataFilter::convertTime(TDCEvent& event) {
+    Double_t ns = 0.1;
+    Double_t clock_ns = 25;
+    for (int i = 0; i < 32; i++) {
+        event.hodoIDsLE[i] *= ns;
+        event.hodoIDsTE[i] *= ns;
+        event.hodoIUsLE[i] *= ns;
+        event.hodoIUsTE[i] *= ns;
+        event.hodoODsLE[i] *= ns;
+        event.hodoODsTE[i] *= ns;
+        event.hodoOUsLE[i] *= ns;
+        event.hodoOUsTE[i] *= ns;
+    }
+    for (int i = 0; i < 120; i++) {
+        event.tileILE[i] *= ns;
+        event.tileITE[i] *= ns;
+        event.tileOLE[i] *= ns;
+        event.tileOTE[i] *= ns;
+    }
+    for (int i = 0; i < 64; i++) {
+        event.bgoLE[i] *= ns;
+        event.bgoTE[i] *= ns;
+    }
+    for (int i = 0; i < 4; i++) {
+        event.trgLE[i] *= ns;
+        event.trgTE[i] *= ns;
+    }
+    event.tdcTimeTag *= clock_ns;
+    
+}
+
+
+void DataFilter::filterAndSave(const char* inputFile, int last_evt) {
+
+    // Load ROOT file
+    ROOT::RDataFrame df("RawEventTree", inputFile);
+
+    // Example filter: select events where tdcTimeTag > 1000
+    auto filtered_df = df.Filter("eventID > " + std::to_string(last_evt), "New Events")
+            //.Filter("bgoLE < " + std::to_string(LE_CUT), "Time Cut")
+            .Define("hodoODsToT", computeToT<32>, {"hodoODsLE", "hodoODsTE"})
+            .Define("hodoOUsToT", computeToT<32>, {"hodoOUsLE", "hodoOUsTE"})
+            .Define("hodoIDsToT", computeToT<32>, {"hodoIDsLE", "hodoIDsTE"})
+            .Define("hodoIUsToT", computeToT<32>, {"hodoIUsLE", "hodoIUsTE"})
+            .Define("bgoToT", computeToT<64>, {"bgoLE", "bgoTE"})
+            .Define("bgoCts", countNonZeroToT<64>, {"bgoToT"})
+            .Filter(barCoincidence<32>, {"hodoODsToT", "hodoOUsToT"})
+            .Filter(barCoincidence<32>, {"hodoIDsToT", "hodoIUsToT"})
+            .Define("hodoODsCts", countNonZeroToT<32>, {"hodoODsToT"})
+            .Define("hodoOUsCts", countNonZeroToT<32>, {"hodoOUsToT"})
+            .Define("hodoIDsCts", countNonZeroToT<32>, {"hodoIDsToT"})
+            .Define("hodoIUsCts", countNonZeroToT<32>, {"hodoIUsToT"})
+            //.Filter("bgoCts > 1", "BGO Cut")      // uncomment if BGO is used
+            .Define("bgoToT_ActiveIndices", getActiveIndices<64>, {"bgoToT"})
+            .Define("hodoODsToT_ActiveIndices", getActiveIndices<32>, {"hodoODsToT"})
+            .Define("hodoOUsToT_ActiveIndices", getActiveIndices<32>, {"hodoOUsToT"})
+            .Define("hodoIDsToT_ActiveIndices", getActiveIndices<32>, {"hodoIDsToT"})
+            .Define("hodoIUsToT_ActiveIndices", getActiveIndices<32>, {"hodoIUsToT"})
+            ;
+
+    auto nEntriesAfterCuts = filtered_df.Count();
+
+    ROOT::RDF::RSnapshotOptions opts;
+    opts.fMode = "update";
+    filtered_df.Snapshot("EventTree", inputFile, "", opts);
+
+
+}
 
 void DataFilter::filterAndSend(const char* inputFile, int last_evt) {
 
@@ -329,4 +411,3 @@ void DataFilter::filterAndSend(const char* inputFile, int last_evt) {
 
     std::cout << "Filtered data sent to ZeroMQ." << std::endl;
 }
-
