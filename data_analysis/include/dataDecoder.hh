@@ -24,9 +24,10 @@ public:
     void processBlock(const std::vector<uint32_t>& rawData);  // Decode and store data
     void writeTree();  // Write to ROOT file
     bool fillData(int channel, int rawchannel, int edge, int32_t time, TDCEvent &event);
-    void processEvent(const char bankName[4], Event dataevent);
+    uint32_t processEvent(const char bankName[4], Event dataevent);
     constexpr int getChannel(int ch);
     void flush();
+    const char* getFileName() { return fileName.c_str(); }
 
 private:
     TFile* rootFile;
@@ -45,6 +46,10 @@ private:
     int32_t this_evt[4] = {0};
     int32_t last_evt[4] = {0};
     int32_t reset_ctr[4] = {0};
+    Double_t this_timetag[4] = {0.};
+    Double_t last_timetag[4] = {0.};
+    int32_t reset_ctr_time[4] = {0};
+    std::string fileName;
 
 };
 

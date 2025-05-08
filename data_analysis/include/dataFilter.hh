@@ -8,6 +8,7 @@
 #include <string>
 #include <cmath>    
 #include <cstddef>  
+#include <zmq.hpp>
 #include "dataDecoder.hh"
 #include "logger.hh"
 #include "tdcEvent.hh"
@@ -16,7 +17,7 @@ class DataFilter {
 public:
     DataFilter(){};
     ~DataFilter(){};
-    void filterAndSend(const char* inputFile, int last_evt);
+    void filterAndSend(const char* inputFile, int last_evt, zmq::socket_t& socket);
     void filterAndSave(const char* inputFile, int last_evt);
     void fileSorter(const char* inputFile, int last_evt, const char* outputFileName);
     void convertTime(TDCEvent& event);

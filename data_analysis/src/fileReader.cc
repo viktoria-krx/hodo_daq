@@ -70,6 +70,12 @@ bool FileReader::readDataBank(DataBank& bank) {
 // Read Next Block
 bool FileReader::readNextBlock(Block& block, long startPos) {
 
+    if (!file.is_open()) {
+        std::cerr << "Failed to open file in readNextBlock.\n";
+        return false;
+    }
+
+    file.clear(); // reset state in case of previous EOF
     file.seekg(startPos, std::ios::beg);
     
     // Read Block ID (4 bytes)

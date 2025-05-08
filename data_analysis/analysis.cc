@@ -12,8 +12,6 @@
 #include "dataDecoder.hh"
 #include "dataFilter.hh"
 
-#define CHECK_INTERVAL_MS 1000   // Check every 500ms
-
 namespace fs = std::filesystem;
 
 long get_file_size(const std::string& filename) {
@@ -101,46 +99,16 @@ std::string getDataFilename(int runNumber) {
     return filename.str(); 
 }
 
+std::string getLockFilename(int runNumber) {
+    std::map<std::string, std::string> config = loadConfig();
 
-void monitor_file(int runNumber) {
-    auto log = Logger::getLogger();
-    
-    zmq::context_t context(1);
-    zmq::socket_t analysis_socket(context, ZMQ_PUB);
-    analysis_socket.bind("tcp://*:5556");  // Publish analyzed data
-
-    std::string binFile = getBinFilename(runNumber);
-
-    FileReader reader(binFile);
-    if (!reader.isOpen()) {
-        log->error("Could not open file {0}", binFile);
-        return; 
-    }
-
-    DataDecoder decoder(getRootFilename(runNumber));
-    long last_size = reader.getFileSize();
-
-    while (true) {
-        std::this_thread::sleep_for(std::chrono::milliseconds(CHECK_INTERVAL_MS));
-
-        long current_size = reader.getFileSize();
-        if (current_size > last_size) {
-            std::ifstream file(binFile, std::ios::binary);
-            Block block;
-            if (reader.readNextBlock(block, last_size)) {
-                for (auto& bank : block.banks) {
-                    for (auto& event : bank.events) {
-                        decoder.processEvent(bank.bankName, event);
-                    }   
-                }
-            }
-
-            last_size = current_size;  // Update last known file size
-        }
-    }
-    decoder.writeTree();
-    decoder.flush();
+    std::ostringstream filename;
+    filename << config["daq_path"] 
+             <<"tmp/hodo_run_" << runNumber
+             << ".lock";
+    return filename.str(); 
 }
+
 
 void runOfflineAnalysis(int runNumber) {
     auto log = Logger::getLogger();
@@ -180,7 +148,104 @@ void runOfflineAnalysis(int runNumber) {
 
 }
 
-void runLiveAnalysis(int runNumber) {}
+
+long processNewData(FileReader& reader, DataDecoder& decoder, long startPos, uint32_t& lastEvent) {
+    Block block;
+    long lastPos = startPos;
+    while (reader.readNextBlock(block, lastPos)) {
+        for (auto& bank : block.banks) {
+            for (auto& event : bank.events) {
+                lastEvent = decoder.processEvent(bank.bankName, event);
+            }
+        }
+        lastPos = reader.currentPos;
+    }
+    return lastPos;
+}
+
+
+void runLiveAnalysis(int runNumber) {
+    auto log = Logger::getLogger();
+    std::string binFile = getBinFilename(runNumber);
+    std::string lockfile = getLockFilename(runNumber);
+
+    log->info("Starting online analysis of {}", binFile);
+
+    while (std::filesystem::exists(lockfile) & !(std::filesystem::exists(binFile))){
+        std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+    }
+
+    FileReader reader(binFile);
+    if (!reader.isOpen()) {
+        log->error("Could not open file {}", binFile);
+        return;
+    }
+
+    zmq::context_t context(1);
+    zmq::socket_t socket(context, ZMQ_PUB);
+    socket.bind("tcp://*:5555");
+
+    DataDecoder decoder(getRootFilename(runNumber));
+
+    const int pollingInterval = 1000; // ms
+    long last_pos = 0;
+    uint32_t last_event = 0;
+    uint32_t this_event = 0;
+    size_t last_size = 0;
+
+    log->debug("Lockfile: {}", lockfile);
+    log->info("Processing binary data ...");
+    
+    while (std::filesystem::exists(lockfile)) {
+        std::ifstream file(binFile, std::ios::binary | std::ios::ate);
+        if (!file.is_open()) {
+            log->warn("File closed or unavailable, retrying...");
+            std::this_thread::sleep_for(std::chrono::milliseconds(pollingInterval));
+            continue;
+        }
+    
+        size_t this_size = file.tellg();
+        file.close();
+
+        if (this_size > last_size && this_size%4 == 0) {
+            log->info("New data detected, processing...");
+
+            last_pos = processNewData(reader, decoder, last_pos, this_event);
+            log->info("Saving {}", binFile);
+            decoder.writeTree();
+            decoder.flush();
+            last_size = this_size;
+
+            log->info("Sorting ROOT file, merging TDC Data ...");
+            DataFilter filter;
+            filter.fileSorter(getRootFilename(runNumber).c_str(), last_event, getDataFilename(runNumber).c_str());
+            log->info("Filtering ROOT file, sending to GUI ...");
+            filter.filterAndSend(getDataFilename(runNumber).c_str(), last_event, socket);
+
+            
+            last_event = this_event;
+
+        }
+
+        
+        std::this_thread::sleep_for(std::chrono::milliseconds(pollingInterval));
+
+    }
+
+    try {
+        log->info("Filtering ROOT file, saving as EventTree ...");
+        DataFilter filter;
+        filter.filterAndSave(getDataFilename(runNumber).c_str(), 0);
+    } catch (...) {
+        log->error("File {} could not be saved.", getDataFilename(runNumber).c_str());
+    }
+
+
+    log->debug("Lockfile does not exist, run {:d} is not ongoing.", runNumber);
+
+}
+
+
 
 int main(int argc, char* argv[]) {
 

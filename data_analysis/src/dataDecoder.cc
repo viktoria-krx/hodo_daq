@@ -9,6 +9,7 @@
 
 // Constructor: Initializes ROOT File & TTree
 DataDecoder::DataDecoder(const std::string& outputFile) {
+    fileName = outputFile;
     rootFile = new TFile(outputFile.c_str(), "RECREATE");
     tree = new TTree("RawEventTree", "TTree holding the raw Hodoscope Data");
 
@@ -211,9 +212,10 @@ bool DataDecoder::fillData(int channel, int rawchannel, int edge, int32_t time, 
 }
 
 
-void DataDecoder::processEvent(const char bankName[4], Event dataevent) {
+uint32_t DataDecoder::processEvent(const char bankName[4], Event dataevent) {
 
     auto log = Logger::getLogger();
+    uint32_t lastEventID;
 
     const std::vector<uint32_t>& data = dataevent.data;
 
@@ -264,13 +266,21 @@ void DataDecoder::processEvent(const char bankName[4], Event dataevent) {
             } else if (IS_GLOBAL_TRAILER(word)) {
 
                 geo = ETTT_GEO(word);
-                // log->debug("[Global Trailer] | GEO: {} | TimeTag: {:d}", geo, timetag*32+geo);
+                //log->debug("[Global Trailer] | GEO: {} | TimeTag: {:d}", geo, timetag*32+geo);
                 
-                event.tdcTimeTag = timetag*32+geo;
+                this_timetag[tdcID] = static_cast<Double_t>(timetag*32+geo) + reset_ctr_time[tdcID] * static_cast<Double_t>(0x100000000) ;
+                if (this_timetag[tdcID] < last_timetag[tdcID]) {
+                    reset_ctr_time[tdcID]++;
+                }
+
+                event.tdcTimeTag = static_cast<Double_t>(timetag*32+geo) + reset_ctr_time[tdcID] * static_cast<Double_t>(0x100000000);
+                //log->debug("[Global Trailer] | GEO: {} | TimeTag: {:f}", geo, event.tdcTimeTag);
+                last_timetag[tdcID] = event.tdcTimeTag;
                 event.cuspRunNumber = cuspValue;
                 event.timestamp = static_cast<Double_t>(secTime);
                 event.gate = gateValue; 
                 tree->Fill();
+                lastEventID = event.eventID;
                 event.reset();
 
             } else {
@@ -300,12 +310,22 @@ void DataDecoder::processEvent(const char bankName[4], Event dataevent) {
     } else {
         log->warn("Unknown Bank: {0}", bankN);
     }
+    
+    return lastEventID;
 
 }
 
 // Write TTree to ROOT File
 void DataDecoder::writeTree() {
-    rootFile->Write();
+    if(rootFile  && rootFile->IsOpen()) {
+        rootFile->cd();
+        rootFile->Write();
+    } else {
+        rootFile = new TFile(getFileName(), "UPDATE");
+        rootFile->cd();
+        rootFile->Write();
+    }
+    
     //std::cout << "ROOT file saved.\n";
 }
 

@@ -102,20 +102,21 @@ void mergeIfUnset(Bool_t& out, const Bool_t& in) {
 }
 
 void DataFilter::fileSorter(const char* inputFile, int last_evt, const char* outputFile) {
+    auto log = Logger::getLogger();
     TFile* file = TFile::Open(inputFile);
+    // log->debug("TFile opened");
     TTree* tree = (TTree*)file->Get("RawEventTree");
+    // log->debug("TFile->Get RawEventTree");
     
     // New output file
     TFile* output;
-    if (last_evt == 0){
-        output = new TFile(outputFile, "RECREATE");
-    } else {
-        output = new TFile(outputFile, "UPDATE");
-    }
-    
-    TTree* newTree = (TTree*)output->Get("RawEventTree");
+    TTree* newTree = nullptr;
 
+    bool createNew = (last_evt == 0  || !(TTree*)output->Get("RawEventTree"));
+
+    TDCEvent eventOut;
     TDCEvent eventIn;
+
 
     tree->SetBranchAddress("eventID",        &eventIn.eventID);
     tree->SetBranchAddress("timestamp",      &eventIn.timestamp);
@@ -154,9 +155,9 @@ void DataFilter::fileSorter(const char* inputFile, int last_evt, const char* out
     // tree->SetBranchAddress("tdcTime",        &eventIn.tdcTime);
 
 
-    TDCEvent eventOut;
-    
-    if (!newTree) {
+    if (createNew){
+        output = new TFile(outputFile, "RECREATE");
+        log->debug("TFile recreated");
         newTree = new TTree("RawEventTree", "TDCs Merged");
 
         newTree->Branch("eventID",        &eventOut.eventID,            "eventID/i");
@@ -196,42 +197,14 @@ void DataFilter::fileSorter(const char* inputFile, int last_evt, const char* out
         // newTree->Branch("tdcTime",        &eventOut.tdcTime);
 
     } else {
-        newTree->SetBranchAddress("eventID",        &eventOut.eventID);
-        newTree->SetBranchAddress("timestamp",      &eventOut.timestamp);
-        newTree->SetBranchAddress("cuspRunNumber",  &eventOut.cuspRunNumber);
-        newTree->SetBranchAddress("gate",           &eventOut.gate);
-        newTree->SetBranchAddress("tdcTimeTag",     &eventOut.tdcTimeTag);
-        newTree->SetBranchAddress("trgLE",          eventOut.trgLE.data());
-        newTree->SetBranchAddress("trgTE",          eventOut.trgTE.data());
+        output = new TFile(outputFile, "UPDATE");
+        log->debug("TFile updating");
+        newTree = (TTree*)output->Get("RawEventTree");
 
-        newTree->SetBranchAddress("hodoIDsLE",      eventOut.hodoIDsLE.data());
-        newTree->SetBranchAddress("hodoIUsLE",      eventOut.hodoIUsLE.data());
-        newTree->SetBranchAddress("hodoODsLE",      eventOut.hodoODsLE.data());
-        newTree->SetBranchAddress("hodoOUsLE",      eventOut.hodoOUsLE.data());
-        newTree->SetBranchAddress("hodoIDsTE",      eventOut.hodoIDsTE.data());
-        newTree->SetBranchAddress("hodoIUsTE",      eventOut.hodoIUsTE.data());
-        newTree->SetBranchAddress("hodoODsTE",      eventOut.hodoODsTE.data());
-        newTree->SetBranchAddress("hodoOUsTE",      eventOut.hodoOUsTE.data());
-        // newTree->SetBranchAddress("hodoIDsToT",     &eventOut.hodoIDsToT);
-        // newTree->SetBranchAddress("hodoIUsToT",     &eventOut.hodoIUsToT);
-        // newTree->SetBranchAddress("hodoODsToT",     &eventOut.hodoODsToT);
-        // newTree->SetBranchAddress("hodoOUsToT",     &eventOut.hodoOUsToT);
-
-        newTree->SetBranchAddress("bgoLE",          eventOut.bgoLE.data());
-        newTree->SetBranchAddress("bgoTE",          eventOut.bgoTE.data());
-        // newTree->SetBranchAddress("bgoToT",         &eventOut.bgoToT);
-
-        newTree->SetBranchAddress("tileILE",        eventOut.tileILE.data());
-        newTree->SetBranchAddress("tileITE",        eventOut.tileITE.data());
-        // newTree->SetBranchAddress("tileIToT",       &eventOut.tileIToT);
-        newTree->SetBranchAddress("tileOLE",        eventOut.tileOLE.data());
-        newTree->SetBranchAddress("tileOTE",        eventOut.tileOTE.data());
-        // newTree->SetBranchAddress("tileOToT",       &eventOut.tileOToT);
-
-        newTree->SetBranchAddress("tdcID",          &eventOut.tdcID);
-        // newTree->SetBranchAddress("tdcChannel",     &eventOut.tdcChannel);
-        // newTree->SetBranchAddress("tdcTime",        &eventOut.tdcTime);
-
+        uint32_t maxEventID = newTree->GetMaximum("eventID");
+        if ((uint32_t)last_evt < maxEventID) {
+            last_evt = maxEventID;
+        }
     }
 
     // Map to store merged events by eventID
@@ -241,7 +214,7 @@ void DataFilter::fileSorter(const char* inputFile, int last_evt, const char* out
     tree->SetTreeIndex(new_ind);
     Int_t nr_evts = (Int_t)tree->GetMaximum("eventID");
 
-    for (Int_t evt = last_evt; evt < nr_evts; evt++){
+    for (Int_t evt = last_evt +1 ; evt < nr_evts; evt++){
         eventOut.reset();
 
         for (Int_t tdc = 0; tdc < 4; tdc++){
@@ -339,7 +312,7 @@ void DataFilter::convertTime(TDCEvent& event) {
         event.trgLE[i] *= ns;
         event.trgTE[i] *= ns;
     }
-    event.tdcTimeTag *= clock_ns;
+    event.tdcTimeTag /= clock_ns;
     
 }
 
@@ -355,18 +328,19 @@ void DataFilter::filterAndSave(const char* inputFile, int last_evt) {
     double eventsUncut = static_cast<double>(*nEntriesBeforeCuts);
     log->info("{} events before cuts", eventsUncut);
 
-    // Example filter: select events where tdcTimeTag > 1000
     auto filtered_df = df.Filter("eventID > " + std::to_string(last_evt), "New Events")
             //.Filter("bgoLE < " + std::to_string(LE_CUT), "Time Cut")
             .Define("bgoLE_tCut", 
                 [this](const ROOT::RVec<Double_t>& le) {
-                    return filterVector(le, [this](Double_t x) { return x > LE_CUT && x > 0; });
+                    return filterVector(le, [this](Double_t x) { return x < LE_CUT && x > 0; });
                 }, {"bgoLE"})
             .Define("hodoODsToT", computeToT<32>, {"hodoODsLE", "hodoODsTE"})
             .Define("hodoOUsToT", computeToT<32>, {"hodoOUsLE", "hodoOUsTE"})
             .Define("hodoIDsToT", computeToT<32>, {"hodoIDsLE", "hodoIDsTE"})
             .Define("hodoIUsToT", computeToT<32>, {"hodoIUsLE", "hodoIUsTE"})
-            .Define("bgoToT", computeToT<64>, {"bgoLE", "bgoTE"})
+            .Define("bgoToT", computeToT<64>, {"bgoLE_tCut", "bgoTE"})
+            .Define("tileIToT", computeToT<120>, {"tileILE", "tileITE"})
+            .Define("tileOToT", computeToT<120>, {"tileOLE", "tileOTE"})
             .Define("bgoCts", countNonZeroToT<64>, {"bgoToT"})
             .Filter(barCoincidence<32>, {"hodoODsToT", "hodoOUsToT"})
             .Filter(barCoincidence<32>, {"hodoIDsToT", "hodoIUsToT"})
@@ -380,6 +354,8 @@ void DataFilter::filterAndSave(const char* inputFile, int last_evt) {
             .Define("hodoOUs_Channels", getActiveIndices<32>, {"hodoOUsToT"})
             .Define("hodoIDs_Channels", getActiveIndices<32>, {"hodoIDsToT"})
             .Define("hodoIUs_Channels", getActiveIndices<32>, {"hodoIUsToT"})
+            .Define("tileI_Channels", getActiveIndices<120>, {"tileIToT"})
+            .Define("tileO_Channels", getActiveIndices<120>, {"tileOToT"})
             ;
 
     auto nEntriesAfterCuts = filtered_df.Count();
@@ -393,14 +369,9 @@ void DataFilter::filterAndSave(const char* inputFile, int last_evt) {
 
 }
 
-void DataFilter::filterAndSend(const char* inputFile, int last_evt) {
+void DataFilter::filterAndSend(const char* inputFile, int last_evt, zmq::socket_t& socket) {
 
     auto log = Logger::getLogger();
-
-    // Set up ZeroMQ Publisher
-    zmq::context_t context(1);
-    zmq::socket_t socket(context, ZMQ_PUB);
-    socket.bind("tcp://*:5557");  // Publisher socket for sending filtered data
 
     // Load ROOT file
     ROOT::RDataFrame df("RawEventTree", inputFile);
@@ -408,33 +379,32 @@ void DataFilter::filterAndSend(const char* inputFile, int last_evt) {
     auto nEntriesBeforeCuts = df.Count();
     double eventsUncut = static_cast<double>(*nEntriesBeforeCuts);
     log->info("{} events before cuts", eventsUncut);
+    log->debug("Reading from event {}", last_evt);
 
-    // Example filter: select events where tdcTimeTag > 1000
     auto filtered_df = df.Filter("eventID > " + std::to_string(last_evt), "New Events")
-            //.Filter("bgoLE < " + std::to_string(LE_CUT), "Time Cut")
-            .Define("bgoLE_tCut", 
-                [this](const ROOT::RVec<Double_t>& le) {
-                    return filterVector(le, [this](Double_t x) { return x > LE_CUT && x > 0; });
-                }, {"bgoLE"})
-            .Define("hodoODsToT", computeToT<32>, {"hodoODsLE", "hodoODsTE"})
-            .Define("hodoOUsToT", computeToT<32>, {"hodoOUsLE", "hodoOUsTE"})
-            .Define("hodoIDsToT", computeToT<32>, {"hodoIDsLE", "hodoIDsTE"})
-            .Define("hodoIUsToT", computeToT<32>, {"hodoIUsLE", "hodoIUsTE"})
-            .Define("bgoToT", computeToT<64>, {"bgoLE", "bgoTE"})
-            .Define("bgoCts", countNonZeroToT<64>, {"bgoToT"})
-            .Filter(barCoincidence<32>, {"hodoODsToT", "hodoOUsToT"})
-            .Filter(barCoincidence<32>, {"hodoIDsToT", "hodoIUsToT"})
-            .Define("hodoODsCts", countNonZeroToT<32>, {"hodoODsToT"})
-            .Define("hodoOUsCts", countNonZeroToT<32>, {"hodoOUsToT"})
-            .Define("hodoIDsCts", countNonZeroToT<32>, {"hodoIDsToT"})
-            .Define("hodoIUsCts", countNonZeroToT<32>, {"hodoIUsToT"})
-            //.Filter("bgoCts > 1", "BGO Cut")      // uncomment if BGO is used
-            .Define("bgo_Channels", getActiveIndices<64>, {"bgoToT"})
-            .Define("hodoODs_Channels", getActiveIndices<32>, {"hodoODsToT"})
-            .Define("hodoOUs_Channels", getActiveIndices<32>, {"hodoOUsToT"})
-            .Define("hodoIDs_Channels", getActiveIndices<32>, {"hodoIDsToT"})
-            .Define("hodoIUs_Channels", getActiveIndices<32>, {"hodoIUsToT"})
-            ;
+                        //.Filter("bgoLE < " + std::to_string(LE_CUT), "Time Cut")
+                        .Define("bgoLE_tCut", 
+                            [this](const ROOT::RVec<Double_t>& le) {
+                                return filterVector(le, [this](Double_t x) { return x < LE_CUT && x > 0; });
+                            }, {"bgoLE"})
+                        .Define("hodoODsToT", computeToT<32>, {"hodoODsLE", "hodoODsTE"})
+                        .Define("hodoOUsToT", computeToT<32>, {"hodoOUsLE", "hodoOUsTE"})
+                        .Define("hodoIDsToT", computeToT<32>, {"hodoIDsLE", "hodoIDsTE"})
+                        .Define("hodoIUsToT", computeToT<32>, {"hodoIUsLE", "hodoIUsTE"})
+                        .Define("bgoToT", computeToT<64>, {"bgoLE_tCut", "bgoTE"})
+                        .Define("tileIToT", computeToT<120>, {"tileILE", "tileITE"})
+                        .Define("tileOToT", computeToT<120>, {"tileOLE", "tileOTE"})
+                        .Define("bgoCts", countNonZeroToT<64>, {"bgoToT"})
+                        .Filter(barCoincidence<32>, {"hodoODsToT", "hodoOUsToT"})
+                        .Filter(barCoincidence<32>, {"hodoIDsToT", "hodoIUsToT"})
+                        .Define("hodoODsCts", countNonZeroToT<32>, {"hodoODsToT"})
+                        .Define("hodoOUsCts", countNonZeroToT<32>, {"hodoOUsToT"})
+                        .Define("hodoIDsCts", countNonZeroToT<32>, {"hodoIDsToT"})
+                        .Define("hodoIUsCts", countNonZeroToT<32>, {"hodoIUsToT"})
+                        //.Filter("bgoCts > 1", "BGO Cut")      // uncomment if BGO is used
+                        .Define("bgo_Channels", getActiveIndices<64>, {"bgoToT"})
+
+                        ;
 
     auto nEntriesAfterCuts = filtered_df.Count();
     double eventsCut = static_cast<double>(*nEntriesAfterCuts);
@@ -442,11 +412,11 @@ void DataFilter::filterAndSend(const char* inputFile, int last_evt) {
 
 
     // Process filtered results
-    filtered_df.Foreach([&socket](uint32_t eventID, uint32_t tdcTimeTag, const std::vector<int>& activeBGO) {
+    filtered_df.Foreach([&socket](uint32_t eventID, double tdcTimeTag, const std::vector<int>& bgo_Channels) {
         std::stringstream ss;
         ss << eventID << " " << tdcTimeTag;
 
-        for (int ch : activeBGO) {
+        for (int ch : bgo_Channels) {
             ss << " " << ch;
         }
 
@@ -455,5 +425,5 @@ void DataFilter::filterAndSend(const char* inputFile, int last_evt) {
 
     }, {"eventID", "tdcTimeTag", "bgo_Channels"});
 
-    std::cout << "Filtered data sent to ZeroMQ." << std::endl;
+    log->debug("Filtered data sent to GUI.");
 }

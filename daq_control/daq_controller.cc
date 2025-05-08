@@ -91,7 +91,11 @@ std::map<std::string, std::string> loadConfig() {
         std::string key, value;
         if (std::getline(ss, key, '=') && std::getline(ss, value)) {
             config[key] = value;
-            log->debug("{0} = {1}", key, value);
+
+            if (!is_running){
+                log->debug("{0} = {1}", key, value);
+            }
+            
         }
     }
     return config;
@@ -177,6 +181,7 @@ void startReadoutThread(v1190& tdc, std::string bankName) {
  */
 void writeBinFile(const std::vector<uint32_t>& data) {
 
+    std::map<std::string, std::string> config = loadConfig();
     int runNumber = std::stoi(config["run_number"]);
     // Get filename as char*
     char* filename = getRunFilename(runNumber, config["daq_path"]+config["data_path"], config["file_prefix"]);
@@ -371,7 +376,7 @@ bool start_run() {
     is_running = true;
     
     std::map<std::string, std::string> config = loadConfig();
-    int runNumber = std::stoi(config["run_number"]) + 1;
+    int runNumber = std::stoi(config["run_number"]) +1;
     config["run_number"] = std::to_string(runNumber);
     saveConfig(config);  // Save updated run number
 
