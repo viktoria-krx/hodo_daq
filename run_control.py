@@ -1,4 +1,9 @@
 #!/home/hododaq/anaconda3/bin/python
+"""
+This GUI controls the data acquisition by sending start and stop commands to the DAQ running in C++
+It has the option "autorun" which depends on the file Number.txt on pcad3-musashi to be changing. Make sure the folder is mounted on this PC.
+@author: viktoria
+"""
 
 import subprocess
 import ttkbootstrap as ttk
@@ -9,7 +14,7 @@ import time
 import sys
 from datetime import datetime
 import socket
-from PIL import Image, ImageTk  # Only needed for PNG icons
+from PIL import Image, ImageTk  
 from tkinter import messagebox
 import pandas as pd
 import numpy as np
@@ -21,9 +26,8 @@ from mpl_toolkits.axes_grid1 import make_axes_locatable
 import zmq
 
 
-
+# Setup for plotting
 plt.style.use("ggplot")
-
 plt.set_cmap("viridis")
 plt.rcParams["grid.linestyle"] = "--"
 plt.rcParams["grid.color"] = "lightgray"
@@ -32,7 +36,7 @@ plt.rcParams["axes.axisbelow"] = True
 plt.rcParams["font.family"] = "sans-serif"
 plt.rcParams.update({'font.size': 8})
 plt.rcParams['pdf.fonttype'] = 'truetype'
-plt.rcParams["axes.prop_cycle"] = plt.cycler(color=["#316D97", "#DD5043", "#65236E", "#6D904F", "#FFC636", "#8b8b8b",  # Original colors
+plt.rcParams["axes.prop_cycle"] = plt.cycler(color=["#316D97", "#DD5043", "#65236E", "#6D904F", "#FFC636", "#8b8b8b",  # ASACUSA colors
                                                     "#4a979e", "#e78748", "#4F5D75", "#556B2F", "#B0A8B9"])
 plt.rcParams["grid.color"] = "lightgray"
 plt.rcParams["grid.linewidth"] = 0.8
@@ -79,11 +83,12 @@ class ConsoleRedirector:
 
 
 def on_closing():
+    """Makes sure that existing DAQ is closed when window is closed."""
     if messagebox.askokcancel("Quit", "Do you really want to quit?"):
 
         # TCP connection settings
-        HOST = "127.0.0.1"  # Change to your DAQ controller's IP
-        PORT = 12345        # Change to your chosen port
+        HOST = "127.0.0.1"  
+        PORT = 12345        
         command = "!"
         try:
             with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
@@ -107,11 +112,13 @@ class DAQControllerApp:
         icon = ImageTk.PhotoImage(icon)
         self.root.iconphoto(False, icon)
 
+        # Set the size of the GUI window:
         screen_width = self.root.winfo_screenwidth()
         screen_height = self.root.winfo_screenheight()
         self.root.geometry(f"{int(screen_width*0.55)}x{int(screen_height*0.9)}+0+0")
-        print(f"{int(screen_width*0.55)}x{int(screen_height*0.9)}")
+        # print(f"{int(screen_width*0.55)}x{int(screen_height*0.9)}")
 
+        # Define fonts:
         self.font_size = max(12, int(screen_height / 120))  # Scale with screen height, min size 12
         self.button_font = ("clean", self.font_size)
         self.label_font = ("clean", self.font_size)
@@ -124,33 +131,30 @@ class DAQControllerApp:
         style.configure("TLabel", font=self.label_font)
         style.configure("CustomToggle.TCheckbutton", bootstyle="success-round-toggle", font=self.label_font)
 
-        self.root.grid_rowconfigure((0,1,2,3,4,6), weight=1, minsize=60)
-        #self.root.grid_rowconfigure(2, weight=2)
-        self.root.grid_rowconfigure(5, weight=3, minsize=400)
+        # Define the GUI grid: 
+        self.root.grid_rowconfigure(0, weight=2, minsize=100)           # Just the title
+        self.root.grid_rowconfigure((1,2,3,4,6), weight=1, minsize=60)  # Rows with buttons
+        self.root.grid_rowconfigure(5, weight=2, minsize=100)           # Row with plots
         self.root.grid_columnconfigure((0, 1, 2, 3, 4, 5), weight=1, minsize=120)
-        # self.root.grid_columnconfigure(5, weight=40)
 
         # Console output to text box
         self.console_output = ttk.Text(root, height=10, width=300, wrap="word", state="disabled", font=self.text_font)
-        # self.console_output = ScrolledText(root, height=10, width=160, wrap="word", state="disabled", font=self.text_font) #
         self.console_output.grid(row=6, column=0, columnspan=6, sticky="s", padx=20, pady=20)
-
         # Redirect stdout & stderr
         self.console = ConsoleRedirector(self.console_output)
         sys.stdout = self.console
         sys.stderr = self.console 
-
         # Scrollbar
         self.scrollbar = ttk.Scrollbar(root, command=self.console_output.yview, bootstyle="info-round", orient="vertical")
         self.scrollbar.grid(row=6, column=6, sticky="nse")
         self.console_output.config(yscrollcommand=self.scrollbar.set)
 
-        # Read configuration
+        # Read configuration file
         self.config_file = "./config/daq_config.conf"  
         self.config = self.read_config()
         self.run_number = self.config.get("run_number", "Unknown")  # Get run_number or default to "Unknown"
 
-        # CUSP run number file
+        # Read CUSP run number file
         self.run_file = "CUSP/Number.txt"  # Change this to your actual run number file
         self.cusp_number = self.read_cusp_run_number().get("cusp_run", 0)
 
@@ -170,7 +174,6 @@ class DAQControllerApp:
         self.auto_run_checkbox = ttk.Checkbutton(root, text=" ", variable=self.auto_run_var, 
                                                  command=self.toggle_auto_run, bootstyle="success-round-toggle", 
                                                  state="disabled")
-        # self.auto_run_checkbox.configure(style="CustomToggle.TCheckbutton", bootstyle="success-round-toggle")
         self.auto_run_checkbox.grid(row=2, column=0, sticky="ne", padx=30, pady=10)
         self.auto_run_label = ttk.Label(root, text="Auto Run", font=self.label_font, bootstyle="secondary")
         self.auto_run_label.grid(row=2, column=0, sticky="nw", padx=50, pady=10)
@@ -191,8 +194,8 @@ class DAQControllerApp:
                                             #   font=self.text_font) 
         self.run_progress_bar.grid(row=2, column=4, columnspan=2, sticky="ew", padx=20, pady=0)
 
-        # Buttons
         self.button_width = 15
+        # Buttons for initialising/stopping DAQ connection
         self.start_daq_button = ttk.Button(root, text="Start DAQ", command=self.start_daq, 
                                            width=self.button_width, bootstyle="success")
         self.start_daq_button.grid(row=1, column=0, sticky="nsew", padx=20, pady=10)
@@ -201,6 +204,7 @@ class DAQControllerApp:
                                           width=self.button_width, bootstyle="danger", state="disabled")
         self.stop_daq_button.grid(row=1, column=5, sticky="nsew", padx=20, pady=10)
 
+        # Buttons for starting/stopping the run
         self.start_button = ttk.Button(root, text="Start Run", command=self.start_run, 
                                        width=self.button_width, bootstyle="success", state="disabled")
         self.start_button.grid(row=3, column=0, sticky="nsew", padx=20, pady=10)
@@ -211,12 +215,10 @@ class DAQControllerApp:
 
         self.pause_button = ttk.Button(root, text="Pause", command=self.pause_daq, 
                                        width=self.button_width, bootstyle="warning", state="disabled")
-        
         self.pause_button.grid(row=3, column=2, sticky="nsew", padx=20, pady=10)
 
         self.resume_button = ttk.Button(root, text="Resume", command=self.resume_daq, 
                                         width=self.button_width, bootstyle="success", state="disabled")
-        
         self.resume_button.grid(row=3, column=3, columnspan = 1, sticky="nsew", padx=20, pady=10)
 
         # Live analysis checkbox
@@ -227,16 +229,21 @@ class DAQControllerApp:
         self.live_analysis_label = ttk.Label(root, text="Live Analysis", font=self.label_font, bootstyle="secondary")
         self.live_analysis_label.grid(row=4, column=0, sticky="nw", padx=40, pady=10)
 
-        self.event_times = []
-        self.seen_event_ids = set()
-
+        # Create plots
         self.setup_plots()
 
+        # Variables to check if DAQ is on or a run is happening
         self.daq_process = None
         self.run_running = False
 
     def setup_plots(self):
-        # Event plot:
+        """Creating event plot and BGO plot"""
+
+        # Data arrays for event plot
+        self.event_times = []
+        self.seen_event_ids = set()
+
+        # Create the event plot
         self.fig1, self.ax1 = plt.subplots(figsize=(500*px, 500*px))
         self.fig1.patch.set_alpha(0.0)
         self.line, = self.ax1.plot([], [], marker='.', linestyle='-', label="Events: 0")
@@ -252,24 +259,28 @@ class DAQControllerApp:
         #self.fig1.tight_layout()
         self.canvas1.draw()
 
-        # BGO plot:
+        # Needed for BGO geometry:
         self.bgo_geom = pd.read_csv("./config/bgo_geom.csv")
-
         self.ch_w = 10
         self.ch_h = 5
-        self.cmin = 1e-3
-        self.cmap = plt.cm.viridis
-        self.norm = Normalize(vmin=0, vmax=1)
-        self.zero_color = "#ececec"
+
+        # Data for BGO plots
         self.rectangles = []
         self.BGO_counts = np.zeros(64)
 
+        # Needed for colorbar:
+        self.cmap = plt.cm.viridis
+        self.norm = Normalize(vmin=0, vmax=1)
+        self.zero_color = "#ececec"
+
+        # Create the BGO plot
         self.fig2, self.ax2 = plt.subplots(figsize=(500*px,500*px))
         self.fig2.patch.set_alpha(0.0)
         # Drawing a circle of the size of the BGO
         self.circle, = self.ax2.fill(45*np.cos(np.linspace( 0, 2*np.pi, 150)), 45*np.sin(np.linspace( 0, 2*np.pi, 150)), 
                                      linestyle='--', ec="white", fc="lightgray", alpha=0.4)
-        for x, y, c in zip(self.bgo_geom.x, self.bgo_geom.y, self.BGO_counts):  # ch_counts from histogram
+        # Creating 64 rectangles for the BGO channels
+        for x, y, c in zip(self.bgo_geom.x, self.bgo_geom.y, self.BGO_counts): 
             if c == 0:
                 color = self.zero_color
             else:
@@ -280,18 +291,16 @@ class DAQControllerApp:
             self.ax2.add_artist(rect)
             self.rectangles.append(rect)
 
+        # Setting up the colorbar, also making sure it's the same size as the plot: 
         self.sm = plt.cm.ScalarMappable(norm=self.norm, cmap='viridis')
-        # self.cbar = self.fig2.colorbar(self.sm, ax=self.ax2)
-        # self.cbar.set_label("Counts")   
         divider = make_axes_locatable(self.ax2)
         cax = divider.append_axes("right", size="5%", pad=0.05)  # Adjust size and padding
         self.cbar = self.fig2.colorbar(self.sm, cax=cax)
         self.cbar.set_label("Counts")
+
         self.ax2.set_aspect('equal')
         self.ax2.set_xlabel("x (mm)")
-        # self.ax2.set_xlim(-45,45)
         self.ax2.set_ylabel("y (mm)")
-        # self.ax2.set_ylim(-45, 45)
 
         # Embed the matplotlib plot in tkinter, in grid row 5
         self.canvas2 = FigureCanvasTkAgg(self.fig2, master=self.root) 
@@ -327,7 +336,7 @@ class DAQControllerApp:
         self.run_running = True
         self.update_floodgauge()
         self.update_run_number()
-        lockfile = f"./tmp/hodo_run_{self.run_number}.lock"
+        lockfile = f"./tmp/hodo_run_{self.run_number}.lock"     # A "lockfile" is used for the live analysis - it only works while this file exists.
         open(lockfile, "w").close()
         self.clear_plot1(self.ax1, self.canvas1)
         self.clear_plot2(self.ax2, self.canvas2)
@@ -342,12 +351,13 @@ class DAQControllerApp:
         self.run_running = False
         self.run_progress_bar["value"] = 0
         self.run_progress_bar["text"] = "Not Running"
-        lockfile = f"./tmp/hodo_run_{self.run_number}.lock"
+        lockfile = f"./tmp/hodo_run_{self.run_number}.lock"     # Lockfile is deleted when the run is stopped. 
         if os.path.exists(lockfile):
             os.remove(lockfile)
+        # To make sure all missing events are still transferred from the C++ analysis I wait 3 seconds before creating the files:
         self.root.after(3000, lambda: self.save_plot( self.ax1, self.fig1, f"{self.cusp_number_at_start}_run_{self.run_number:0>5}_events"))
         self.root.after(3000, lambda: self.save_plot( self.ax2, self.fig2, f"{self.cusp_number_at_start}_run_{self.run_number:0>5}_bgo"))
-        #self.root.after(4000, lambda: self.clear_plot(self.ax1, self.canvas1))
+
         
 
     def pause_daq(self):
@@ -540,7 +550,7 @@ class DAQControllerApp:
                 self.live_process.terminate()
 
     def process_live_data(self, message):
-        
+        """Extracts the data form the recieved string"""
         tokens = message.strip().split()
         event_id = int(tokens[0])
         tdc_time = float(tokens[1])*1e-9
@@ -591,7 +601,27 @@ class DAQControllerApp:
         self.canvas2.draw()
 
 
+    def save_plot(self, axis, figure, filename="tdc_events"):
+        """Saves the plots once as png and once as pdf, text and outlines are set to black"""
+        axis.tick_params(colors='#161616')  # Tick label color
+        axis.xaxis.label.set_color('#161616')
+        axis.yaxis.label.set_color('#161616')
+        if axis == self.ax2:
+            self.cbar.ax.yaxis.set_tick_params(color='#161616')  # Tick marks
+            plt.setp(self.cbar.ax.get_yticklabels(), color='#161616')  # Tick text
+            self.cbar.set_label("Counts", color='#161616')  # Set color of the label
+            for spine in self.cbar.ax.spines.values():
+                spine.set_edgecolor('#161616')
+        for spine in axis.spines.values():
+            spine.set_edgecolor("#161616")
+
+        # Save as PNG and PDF
+        figure.savefig(f"{self.config.get("daq_path")}/data/plots/{filename}.png", dpi=300, bbox_inches='tight')
+        figure.savefig(f"{self.config.get("daq_path")}/data/plots/{filename}.pdf", bbox_inches='tight')
+
+
     def clear_plot1(self, axis, canvas):
+        """Clears event plot, texts and outlines are light again"""
         self.event_times.clear()
         self.line.set_data([], [])
         axis.tick_params(colors='white')  # Tick label color
@@ -605,6 +635,7 @@ class DAQControllerApp:
         canvas.draw()
 
     def clear_plot2(self, axis, canvas):
+        """Clears BGO plot, texts and outlines are light again"""
         self.norm.vmax = 1
         self.sm.set_norm(self.norm)
         self.BGO_counts = np.zeros(64)
@@ -622,24 +653,6 @@ class DAQControllerApp:
         axis.autoscale_view()
         canvas.draw()
 
-    def save_plot(self, axis, figure, filename="tdc_events"):
-        axis.tick_params(colors='#161616')  # Tick label color
-        axis.xaxis.label.set_color('#161616')
-        axis.yaxis.label.set_color('#161616')
-        if axis == self.ax2:
-            self.cbar.ax.yaxis.set_tick_params(color='#161616')  # Tick marks
-            plt.setp(self.cbar.ax.get_yticklabels(), color='#161616')  # Tick text
-            self.cbar.set_label("Counts", color='#161616')  # Set color of the label
-            for spine in self.cbar.ax.spines.values():
-                spine.set_edgecolor('#161616')
-        for spine in axis.spines.values():
-            spine.set_edgecolor("#161616")
-
-        # Save as PNG and PDF
-        figure.savefig(f"{self.config.get("daq_path")}/data/plots/{filename}.png", dpi=300, bbox_inches='tight')
-        figure.savefig(f"{self.config.get("daq_path")}/data/plots/{filename}.pdf", bbox_inches='tight')
-
-        #print(f"Plot saved as {filename_base}.png and .pdf")
 
 # Run the application
 if __name__ == "__main__":

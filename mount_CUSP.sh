@@ -1,0 +1,1 @@
+sudo mount -t cifs //pcad3-musashi/Musashi /home/hododaq/DAQ/CUSP -o ro,credentials=/home/hododaq/.smbcredentials
