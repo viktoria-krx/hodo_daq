@@ -6,7 +6,7 @@
 
 struct Event {
     uint32_t eventID;
-    uint64_t timestamp;
+    uint32_t timestamp;
     std::vector<uint32_t> data; // Raw TDC hits, for example
 };
 

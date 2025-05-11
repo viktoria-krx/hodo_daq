@@ -11,10 +11,15 @@ from datetime import datetime
 import socket
 from PIL import Image, ImageTk  # Only needed for PNG icons
 from tkinter import messagebox
-import matplotlib.pyplot as plt
+import pandas as pd
 import numpy as np
+import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+from matplotlib.patches import Rectangle
+from matplotlib.colors import Normalize
+from mpl_toolkits.axes_grid1 import make_axes_locatable
 import zmq
+
 
 
 plt.style.use("ggplot")
@@ -39,13 +44,16 @@ plt.rcParams["ytick.left"] = True
 plt.rcParams["ytick.right"] = True
 plt.rcParams["xtick.color"] = "lightgray"
 plt.rcParams["ytick.color"] = "lightgray"
-plt.rcParams["text.color"] = "lightgray"
-plt.rcParams["axes.labelcolor"] = "lightgray"
-plt.rcParams["axes.titlecolor"] = "lightgray"
+plt.rcParams["text.color"] = "white"
+plt.rcParams["legend.labelcolor"] = "#161616"
+plt.rcParams["legend.facecolor"] = "white"
+plt.rcParams["axes.labelcolor"] = "white"
+plt.rcParams["axes.titlecolor"] = "white"
 plt.rcParams["figure.facecolor"] = "#ffffff"
 plt.rcParams['pdf.fonttype'] = 'truetype'
 plt.rcParams["figure.dpi"] = 150
 plt.rcParams["savefig.facecolor"] = (1.0, 1.0, 1.0, 0.0)
+px = 1/plt.rcParams['figure.dpi']
 
 
 class ConsoleRedirector:
@@ -102,6 +110,7 @@ class DAQControllerApp:
         screen_width = self.root.winfo_screenwidth()
         screen_height = self.root.winfo_screenheight()
         self.root.geometry(f"{int(screen_width*0.55)}x{int(screen_height*0.9)}+0+0")
+        print(f"{int(screen_width*0.55)}x{int(screen_height*0.9)}")
 
         self.font_size = max(12, int(screen_height / 120))  # Scale with screen height, min size 12
         self.button_font = ("clean", self.font_size)
@@ -115,10 +124,10 @@ class DAQControllerApp:
         style.configure("TLabel", font=self.label_font)
         style.configure("CustomToggle.TCheckbutton", bootstyle="success-round-toggle", font=self.label_font)
 
-        self.root.grid_rowconfigure((0,1,2,3,4,6), weight=1)
+        self.root.grid_rowconfigure((0,1,2,3,4,6), weight=1, minsize=60)
         #self.root.grid_rowconfigure(2, weight=2)
-        self.root.grid_rowconfigure(5, weight=15)
-        self.root.grid_columnconfigure((0, 1, 2, 3, 4, 5), weight=10)
+        self.root.grid_rowconfigure(5, weight=3, minsize=400)
+        self.root.grid_columnconfigure((0, 1, 2, 3, 4, 5), weight=1, minsize=120)
         # self.root.grid_columnconfigure(5, weight=40)
 
         # Console output to text box
@@ -208,40 +217,88 @@ class DAQControllerApp:
         self.resume_button = ttk.Button(root, text="Resume", command=self.resume_daq, 
                                         width=self.button_width, bootstyle="success", state="disabled")
         
-        self.resume_button.grid(row=3, column=3, columnspan = 1, sticky="n", padx=20, pady=10)
+        self.resume_button.grid(row=3, column=3, columnspan = 1, sticky="nsew", padx=20, pady=10)
 
         # Live analysis checkbox
         self.live_analysis_var = ttk.BooleanVar()
         self.live_analysis_checkbox = ttk.Checkbutton(root, text=" ", variable=self.live_analysis_var, 
                                                       command=self.toggle_live_analysis, bootstyle="success-round-toggle", state="disabled")
-        self.live_analysis_checkbox.grid(row=4, column=0, sticky="ne", padx=20, pady=10)
+        self.live_analysis_checkbox.grid(row=4, column=0, sticky="ne", padx=0, pady=10)
         self.live_analysis_label = ttk.Label(root, text="Live Analysis", font=self.label_font, bootstyle="secondary")
         self.live_analysis_label.grid(row=4, column=0, sticky="nw", padx=40, pady=10)
 
         self.event_times = []
         self.seen_event_ids = set()
 
-        # Create a matplotlib figure
-        self.fig, self.ax = plt.subplots(figsize=(6, 4))
-        self.fig.patch.set_alpha(0.0)
-        #self.line, = self.ax.plot([], [], lw=1)
-        self.line, = self.ax.plot([], [], marker='.', linestyle='-')
-        self.ax.set_xlabel("TDC Time Tag (s)")
-        self.ax.set_ylabel("Events")
-        self.ax.set_xlim(0, self.run_duration_var.get())
-
-        # Embed the matplotlib plot in tkinter, in grid row 5
-        self.canvas = FigureCanvasTkAgg(self.fig, master=self.root)  # or your specific parent frame
-        self.canvas_widget = self.canvas.get_tk_widget()
-        self.canvas_widget.grid(row=5, column=0, columnspan=5, padx=30, pady=20)  # adjust columns as needed
-        self.fig.tight_layout()
-
-        self.canvas.draw()
-
-
+        self.setup_plots()
 
         self.daq_process = None
         self.run_running = False
+
+    def setup_plots(self):
+        # Event plot:
+        self.fig1, self.ax1 = plt.subplots(figsize=(500*px, 500*px))
+        self.fig1.patch.set_alpha(0.0)
+        self.line, = self.ax1.plot([], [], marker='.', linestyle='-', label="Events: 0")
+        self.ax1.legend()
+        self.ax1.set_xlabel("TDC Time Tag (s)")
+        self.ax1.set_ylabel("Events")
+        self.ax1.set_xlim(0, self.run_duration_var.get())
+
+        # Embed the matplotlib plot in tkinter, in grid row 5
+        self.canvas1 = FigureCanvasTkAgg(self.fig1, master=self.root) 
+        self.canvas_widget1 = self.canvas1.get_tk_widget()
+        self.canvas_widget1.grid(row=5, column=0, columnspan=3, padx=0, pady=40, sticky="se") 
+        #self.fig1.tight_layout()
+        self.canvas1.draw()
+
+        # BGO plot:
+        self.bgo_geom = pd.read_csv("./config/bgo_geom.csv")
+
+        self.ch_w = 10
+        self.ch_h = 5
+        self.cmin = 1e-3
+        self.cmap = plt.cm.viridis
+        self.norm = Normalize(vmin=0, vmax=1)
+        self.zero_color = "#ececec"
+        self.rectangles = []
+        self.BGO_counts = np.zeros(64)
+
+        self.fig2, self.ax2 = plt.subplots(figsize=(500*px,500*px))
+        self.fig2.patch.set_alpha(0.0)
+        # Drawing a circle of the size of the BGO
+        self.circle, = self.ax2.fill(45*np.cos(np.linspace( 0, 2*np.pi, 150)), 45*np.sin(np.linspace( 0, 2*np.pi, 150)), 
+                                     linestyle='--', ec="white", fc="lightgray", alpha=0.4)
+        for x, y, c in zip(self.bgo_geom.x, self.bgo_geom.y, self.BGO_counts):  # ch_counts from histogram
+            if c == 0:
+                color = self.zero_color
+            else:
+                color = self.cmap(self.norm(c))
+            rect = Rectangle(xy=(x - self.ch_w/2, y - self.ch_h/2),
+                            width=self.ch_w, height=self.ch_h,
+                            color=color)
+            self.ax2.add_artist(rect)
+            self.rectangles.append(rect)
+
+        self.sm = plt.cm.ScalarMappable(norm=self.norm, cmap='viridis')
+        # self.cbar = self.fig2.colorbar(self.sm, ax=self.ax2)
+        # self.cbar.set_label("Counts")   
+        divider = make_axes_locatable(self.ax2)
+        cax = divider.append_axes("right", size="5%", pad=0.05)  # Adjust size and padding
+        self.cbar = self.fig2.colorbar(self.sm, cax=cax)
+        self.cbar.set_label("Counts")
+        self.ax2.set_aspect('equal')
+        self.ax2.set_xlabel("x (mm)")
+        # self.ax2.set_xlim(-45,45)
+        self.ax2.set_ylabel("y (mm)")
+        # self.ax2.set_ylim(-45, 45)
+
+        # Embed the matplotlib plot in tkinter, in grid row 5
+        self.canvas2 = FigureCanvasTkAgg(self.fig2, master=self.root) 
+        self.canvas_widget2 = self.canvas2.get_tk_widget()
+        self.canvas_widget2.grid(row=5, column=3, columnspan=3, padx=0, pady=40, sticky="sw") 
+        #self.fig2.tight_layout()
+        self.canvas2.draw()
 
 
     def send_command(self, command):
@@ -272,7 +329,9 @@ class DAQControllerApp:
         self.update_run_number()
         lockfile = f"./tmp/hodo_run_{self.run_number}.lock"
         open(lockfile, "w").close()
-        self.clear_plot()
+        self.clear_plot1(self.ax1, self.canvas1)
+        self.clear_plot2(self.ax2, self.canvas2)
+        self.cusp_number_at_start = self.cusp_number
         self.toggle_live_analysis()
 
     def stop_run(self):
@@ -286,8 +345,10 @@ class DAQControllerApp:
         lockfile = f"./tmp/hodo_run_{self.run_number}.lock"
         if os.path.exists(lockfile):
             os.remove(lockfile)
-        self.save_plot(f"run_{self.run_number:0>5}_{self.cusp_number:0>4}")
-        self.clear_plot()
+        self.root.after(3000, lambda: self.save_plot( self.ax1, self.fig1, f"{self.cusp_number_at_start}_run_{self.run_number:0>5}_events"))
+        self.root.after(3000, lambda: self.save_plot( self.ax2, self.fig2, f"{self.cusp_number_at_start}_run_{self.run_number:0>5}_bgo"))
+        #self.root.after(4000, lambda: self.clear_plot(self.ax1, self.canvas1))
+        
 
     def pause_daq(self):
         self.send_command("pause")
@@ -458,10 +519,10 @@ class DAQControllerApp:
         socket = context.socket(zmq.SUB)
         socket.connect("tcp://localhost:5555")
         socket.setsockopt_string(zmq.SUBSCRIBE, "") 
-        geometry = f"80x24+1140+300"
+        geometry = f"80x24+1140+400"
         self.live_process = subprocess.Popen(["gnome-terminal", f"--geometry={geometry}", 
                                               "--title=Live Analysis Terminal", "--", "bash", "-c", 
-                                              f"cd data_analysis/build; ./hodo_analysis -l {str(self.run_number)}; exec bash"])
+                                              f"cd data_analysis/build; ./hodo_analysis -l {str(self.run_number)}"]) #add ; exec bash to keep window open
 
         try:
             while self.live_analysis_enabled:
@@ -490,6 +551,10 @@ class DAQControllerApp:
             return 
         self.seen_event_ids.add(event_id)
 
+        for ch in active_channels:
+            if ch < 64:
+                self.BGO_counts[ch] +=1
+
         self.event_times.append([tdc_time, event_id])
         self.update_plot()
 
@@ -501,40 +566,78 @@ class DAQControllerApp:
         tdc_event = np.arange(1, len(self.event_times) + 1) # np.array(self.event_times)[:,1]
 
         self.line.set_data(tdc_times, tdc_event)
-        self.ax.relim()
-        self.ax.autoscale_view()
+        self.line.set_label(f"Events: {np.max(tdc_event)}")
+        self.ax1.legend()
+        self.ax1.relim()
+        self.ax1.autoscale_view()
         # self.ax.plot(tdc_times, tdc_event, marker='.', linestyle='-')
-        self.ax.set_xlabel("TDC Time in s")
-        self.ax.set_ylabel("Number of Events")
-        self.ax.set_xlim(0, self.run_duration_var.get())
-        self.ax.grid(True)
+        # self.ax1.set_xlabel("TDC Time in s")
+        # self.ax1.set_ylabel("Number of Events")
+        self.ax1.set_xlim(0, self.run_duration_var.get())
+        self.ax1.grid(True)
 
-        self.fig.tight_layout()
-        self.canvas.draw()
+        # self.fig1.tight_layout()
+        self.canvas1.draw()
 
-    def clear_plot(self):
+        self.norm.vmax = max(self.BGO_counts) if max(self.BGO_counts) > 1 else 1
+        self.sm.set_norm(self.norm)
+        for rect, count in zip(self.rectangles, self.BGO_counts):
+            if count == 0:
+                rect.set_facecolor(self.zero_color)
+            else:
+                rect.set_facecolor(self.cmap(self.norm(count)))
+        # Redraw both canvas and colorbar
+        self.cbar.update_normal(self.sm)
+        self.canvas2.draw()
+
+
+    def clear_plot1(self, axis, canvas):
         self.event_times.clear()
         self.line.set_data([], [])
-        self.ax.tick_params(colors='white')  # Tick label color
-        self.ax.xaxis.label.set_color('lightgray')
-        self.ax.yaxis.label.set_color('lightgray')
-        for spine in self.ax.spines.values():
+        axis.tick_params(colors='white')  # Tick label color
+        axis.xaxis.label.set_color('lightgray')
+        axis.yaxis.label.set_color('lightgray')
+        for spine in axis.spines.values():
             spine.set_edgecolor("white")
-        self.ax.relim()
-        self.ax.autoscale_view()
-        self.ax.set_xlim(0, self.run_duration_var.get())
-        self.canvas.draw()
+        axis.relim()
+        axis.autoscale_view()
+        axis.set_xlim(0, self.run_duration_var.get())
+        canvas.draw()
 
-    def save_plot(self, filename_base="tdc_plot"):
-        self.ax.tick_params(colors='#161616')  # Tick label color
-        self.ax.xaxis.label.set_color('#161616')
-        self.ax.yaxis.label.set_color('#161616')
-        for spine in self.ax.spines.values():
+    def clear_plot2(self, axis, canvas):
+        self.norm.vmax = 1
+        self.sm.set_norm(self.norm)
+        self.BGO_counts = np.zeros(64)
+        axis.tick_params(colors='white')  # Tick label color
+        axis.xaxis.label.set_color('lightgray')
+        axis.yaxis.label.set_color('lightgray')
+        self.cbar.ax.yaxis.set_tick_params(color='lightgray')  # Tick marks
+        plt.setp(self.cbar.ax.get_yticklabels(), color='lightgray')  # Tick text
+        self.cbar.set_label("Counts", color='lightgray')  # Set color of the label
+        for spine in self.cbar.ax.spines.values():
+            spine.set_edgecolor('white')
+        for spine in axis.spines.values():
+            spine.set_edgecolor("white")
+        axis.relim()
+        axis.autoscale_view()
+        canvas.draw()
+
+    def save_plot(self, axis, figure, filename="tdc_events"):
+        axis.tick_params(colors='#161616')  # Tick label color
+        axis.xaxis.label.set_color('#161616')
+        axis.yaxis.label.set_color('#161616')
+        if axis == self.ax2:
+            self.cbar.ax.yaxis.set_tick_params(color='#161616')  # Tick marks
+            plt.setp(self.cbar.ax.get_yticklabels(), color='#161616')  # Tick text
+            self.cbar.set_label("Counts", color='#161616')  # Set color of the label
+            for spine in self.cbar.ax.spines.values():
+                spine.set_edgecolor('#161616')
+        for spine in axis.spines.values():
             spine.set_edgecolor("#161616")
 
         # Save as PNG and PDF
-        self.fig.savefig(f"{self.config.get("daq_path")}/data/plots/{filename_base}.png", dpi=300, bbox_inches='tight')
-        self.fig.savefig(f"{self.config.get("daq_path")}/data/plots/{filename_base}.pdf", bbox_inches='tight')
+        figure.savefig(f"{self.config.get("daq_path")}/data/plots/{filename}.png", dpi=300, bbox_inches='tight')
+        figure.savefig(f"{self.config.get("daq_path")}/data/plots/{filename}.pdf", bbox_inches='tight')
 
         #print(f"Plot saved as {filename_base}.png and .pdf")
 

@@ -242,11 +242,13 @@ void fileWriterThread() {
     while(!stopReadout) {
 
         Block block(blockID);
+        std::map<std::string, std::string> config = loadConfig();
+        
 
-        DataBank CUSP("CUSP");        // Adding the current ms timestamp to the CUSP bank, since this won't change anything
+        DataBank CUSP("CUSP");        // Adding the current s timestamp to the CUSP bank
         auto now = std::chrono::system_clock::now();
         uint32_t now_s = static_cast<uint32_t>(std::chrono::duration_cast<std::chrono::seconds>(now.time_since_epoch()).count());
-        std::ifstream cuspFile("/home/hododaq/hodo_daq/CUSP/Number.txt");
+        std::ifstream cuspFile(config["daq_path"]+"CUSP/Number.txt");
         if (cuspFile) {
             int cuspValue;
             cuspFile >> cuspValue;

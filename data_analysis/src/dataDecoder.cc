@@ -301,7 +301,7 @@ uint32_t DataDecoder::processEvent(const char bankName[4], Event dataevent) {
             cuspValue = data[0];
             event.cuspRunNumber = cuspValue;
             
-            secTime = dataevent.timestamp;
+            secTime = static_cast<Double_t>(dataevent.timestamp);
             event.timestamp = secTime;
             // log->debug("[CUSP Event] Value: {0:d} | Time: {1:d}", cuspValue, secTime);
             // tree->Fill();

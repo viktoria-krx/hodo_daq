@@ -55,15 +55,15 @@ bool VMEInterface::init() {
     if (stopVeto() != cvSuccess) {
         log->error("Can't stop veto");
     } else {
-        log->debug("Veto stopped, sleeping 3 s.");
-        sleep(3);
+        log->debug("Veto stopped, sleeping 0.5 s.");
+        sleep(0.5);
     }
 
     if (startVeto() != cvSuccess) {
         log->error("Can't start veto");
     } else {
-        log->debug("Veto started, sleeping 5 s.");
-        sleep(5);
+        log->debug("Veto started, sleeping 1 s.");
+        sleep(1);
     }    
 
     if (stopVeto() != cvSuccess) {

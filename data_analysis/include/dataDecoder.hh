@@ -42,7 +42,7 @@ private:
     int32_t gateTime;
     bool gateValue = 0;
     int32_t cuspValue = 0;
-    uint32_t secTime = 0;
+    Double_t secTime = 0;
     int32_t this_evt[4] = {0};
     int32_t last_evt[4] = {0};
     int32_t reset_ctr[4] = {0};

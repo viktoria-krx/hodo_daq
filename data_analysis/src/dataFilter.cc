@@ -312,7 +312,7 @@ void DataFilter::convertTime(TDCEvent& event) {
         event.trgLE[i] *= ns;
         event.trgTE[i] *= ns;
     }
-    event.tdcTimeTag /= clock_ns;
+    event.tdcTimeTag *= ns;
     
 }
 
