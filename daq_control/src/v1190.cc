@@ -277,7 +277,7 @@ unsigned int v1190::BLTRead(DataBank& dataBank) {
     int bytesRead = 0; 
 
     unsigned int ret = V1190BLTRead(buff, BufferSize, &bytesRead, handle, vmeBaseAddress);
-    // log->debug("{:d} bytes read", bytesRead);
+    log->trace("{:d} bytes read", bytesRead);
     if (ret != cvSuccess && ret != cvBusError) {
         log->error("BLT Readout Error");
         // std::cerr << "BLT Readout Error" << std::endl;
@@ -297,7 +297,7 @@ unsigned int v1190::BLTRead(DataBank& dataBank) {
 
         // Check for Global Header (start of event)
         if (IS_GLOBAL_HEADER(word)) {  
-            //log->debug("word: {:#x}", word);
+            log->trace("word: {:#x}", word);
             if (!currentEvent.data.empty()) {
                 dataBank.addEvent(currentEvent);            //  Add completed event
                 currentEvent.data.clear();
@@ -308,7 +308,7 @@ unsigned int v1190::BLTRead(DataBank& dataBank) {
         else if (IS_TDC_HEADER(word)) {
             currentEvent.timestamp = DATA_BUNCH_ID(word);
             currentEvent.eventID = DATA_EVENT_ID(word);
-            //log->debug("Event {0:d} from {1}", currentEvent.eventID, bankN);
+            log->trace("Event {0:d} from {1}", currentEvent.eventID, bankN);
             currentEvent.data.push_back(word);
         }
         // Check for Global Trailer (end of event)

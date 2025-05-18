@@ -601,7 +601,7 @@ class DAQControllerApp:
         geometry = f"80x24+1140+400"
         self.live_process = subprocess.Popen(["gnome-terminal", f"--geometry={geometry}", 
                                               "--title=Live Analysis Terminal", "--", "bash", "-c", 
-                                              f"cd data_analysis/build; ./hodo_analysis -a {str(self.run_number)}; exec bash"]) #add ; exec bash to keep window open
+                                              f"cd data_analysis/build; ./hodo_analysis -a {str(self.run_number)}"]) #add ; exec bash to keep window open
 
         try:
             while self.analysis_after_enabled:
@@ -687,7 +687,7 @@ class DAQControllerApp:
         tdc_times = np.array(self.event_times)[:,0]
         tdc_event = np.arange(1, len(self.event_times) + 1) # np.array(self.event_times)[:,1]
         tdc_gates = np.array(self.event_times)[:,2]
-        tdc_event_gated = np.arange(1, len(np.ma.array(np.array(self.event_times)[:,1], mask = tdc_gates).compressed()) +1 )
+        tdc_event_gated = np.arange(1, len(np.ma.array(np.array(self.event_times)[:,1], mask = tdc_gates).compressed()) + 1 )
 
         self.line.set_data(tdc_times, tdc_event)
         self.line.set_label(f"Events: {np.max(tdc_event)}")
@@ -696,9 +696,6 @@ class DAQControllerApp:
         self.ax1.legend()
         self.ax1.relim()
         self.ax1.autoscale_view()
-        # self.ax.plot(tdc_times, tdc_event, marker='.', linestyle='-')
-        # self.ax1.set_xlabel("TDC Time in s")
-        # self.ax1.set_ylabel("Number of Events")
         self.ax1.set_xlim(0, self.run_duration_var.get())
         self.ax1.grid(True)
 

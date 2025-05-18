@@ -31,70 +31,17 @@ DataDecoder::DataDecoder(const std::string& outputFile) {
     tree->Branch("hodoIUsTE", &event.hodoIUsTE);     // Inner Upstream Trailing Edges
     tree->Branch("hodoODsTE", &event.hodoODsTE);     // Outer Downstream Trailing Edges
     tree->Branch("hodoOUsTE", &event.hodoOUsTE);     // Outer Upstream Trailing Edges
-    // tree->Branch("hodoIDsToT", &event.hodoIDsToT, "hodoIDsToT[32]/D");     // Inner Downstream Time over Threshold
-    // tree->Branch("hodoIUsToT", &event.hodoIUsToT, "hodoIUsTEoT[32]/D");     // Inner Upstream Time over Threshold
-    // tree->Branch("hodoODsToT", &event.hodoODsToT, "hodoODsToT[32]/D");     // Outer Downstream Time over Threshold
-    // tree->Branch("hodoOUsToT", &event.hodoOUsToT, "hodoOUsToT[32]/D");     // Outer Upstream Time over Threshold
-
     tree->Branch("bgoLE", &event.bgoLE);     // BGO Leading Edges
     tree->Branch("bgoTE", &event.bgoTE);     // BGO Trailing Edges
-    // tree->Branch("bgoToT", &event.bgoToT, "bgoToT[64]/D");  // BGO Time over Threshold
 
     tree->Branch("tileILE", &event.tileILE);     // Tile Inner Leading Edges
     tree->Branch("tileITE", &event.tileITE);     // Tile Inner Trailing Edges
     tree->Branch("tileOLE", &event.tileOLE);     // Tile Outer Leading Edges
     tree->Branch("tileOTE", &event.tileOTE);     // Tile Outer Trailing Edges
-    // tree->Branch("tileIToT", &event.tileIToT, "tileIToT[120]/D");     // Tile Inner Time over Threshold
-    // tree->Branch("tileOToT", &event.tileOToT, "tileOToT[120]/D");     // Tile Outer Time over Threshold
 
     tree->Branch("tdcID", &event.tdcID);
-    // tree->Branch("tdcChannel", &event.tdcChannel, "tdcChannel/i");
     
 }
-// // Constructor: Initializes ROOT File & TTree
-// DataDecoder::DataDecoder(const std::string& outputFile) {
-//     rootFile = new TFile(outputFile.c_str(), "RECREATE");
-//     tree = new TTree("RawEventTree", "TTree holding the raw Hodoscope Data");
-
-//     // Define Tree Branches
-//     tree->Branch("eventID", &event.eventID, "eventID/i");
-//     tree->Branch("timestamp", &event.timestamp, "timestamp/D");
-//     tree->Branch("cuspRunNumber", &event.cuspRunNumber, "cuspRunNumber/i");
-//     tree->Branch("gate", &event.gate, "gate/O");
-//     tree->Branch("tdcTimeTag", &event.tdcTimeTag, "tdcTimeTag/D");
-//     tree->Branch("trgLE", &event.trgLE, "trgLE[4]/D");
-//     tree->Branch("trgTE", &event.trgTE, "trgTE[4]/D");
-
-//     tree->Branch("hodoIDsLE", &event.hodoIDsLE, "hodoIDsLE[32]/D");     // Inner Downstream Leading Edges
-//     tree->Branch("hodoIUsLE", &event.hodoIUsLE, "hodoIUsLE[32]/D");     // Inner Upstream Leading Edges
-//     tree->Branch("hodoODsLE", &event.hodoODsLE, "hodoODsLE[32]/D");     // Outer Downstream Leading Edges
-//     tree->Branch("hodoOUsLE", &event.hodoOUsLE, "hodoOUsLE[32]/D");     // Outer Upstream Leading Edges
-//     tree->Branch("hodoIDsTE", &event.hodoIDsTE, "hodoIDsTE[32]/D");     // Inner Downstream Trailing Edges
-//     tree->Branch("hodoIUsTE", &event.hodoIUsTE, "hodoIUsTE[32]/D");     // Inner Upstream Trailing Edges
-//     tree->Branch("hodoODsTE", &event.hodoODsTE, "hodoODsTE[32]/D");     // Outer Downstream Trailing Edges
-//     tree->Branch("hodoOUsTE", &event.hodoOUsTE, "hodoOUsTE[32]/D");     // Outer Upstream Trailing Edges
-//     // tree->Branch("hodoIDsToT", &event.hodoIDsToT, "hodoIDsToT[32]/D");     // Inner Downstream Time over Threshold
-//     // tree->Branch("hodoIUsToT", &event.hodoIUsToT, "hodoIUsTEoT[32]/D");     // Inner Upstream Time over Threshold
-//     // tree->Branch("hodoODsToT", &event.hodoODsToT, "hodoODsToT[32]/D");     // Outer Downstream Time over Threshold
-//     // tree->Branch("hodoOUsToT", &event.hodoOUsToT, "hodoOUsToT[32]/D");     // Outer Upstream Time over Threshold
-
-//     tree->Branch("bgoLE", &event.bgoLE, "bgoLE[64]/D");     // BGO Leading Edges
-//     tree->Branch("bgoTE", &event.bgoTE, "bgoTE[64]/D");     // BGO Trailing Edges
-//     // tree->Branch("bgoToT", &event.bgoToT, "bgoToT[64]/D");  // BGO Time over Threshold
-
-//     tree->Branch("tileILE", &event.tileILE, "tileILE[120]/D");     // Tile Inner Leading Edges
-//     tree->Branch("tileITE", &event.tileITE, "tileITE[120]/D");     // Tile Inner Trailing Edges
-//     tree->Branch("tileOLE", &event.tileOLE, "tileOLE[120]/D");     // Tile Outer Leading Edges
-//     tree->Branch("tileOTE", &event.tileOTE, "tileOTE[120]/D");     // Tile Outer Trailing Edges
-//     // tree->Branch("tileIToT", &event.tileIToT, "tileIToT[120]/D");     // Tile Inner Time over Threshold
-//     // tree->Branch("tileOToT", &event.tileOToT, "tileOToT[120]/D");     // Tile Outer Time over Threshold
-
-//     tree->Branch("tdcID", &event.tdcID, "tdcID/i");
-//     // tree->Branch("tdcChannel", &event.tdcChannel, "tdcChannel/i");
-    
-// }
-
-
 
 // Destructor: Writes and Closes ROOT File
 DataDecoder::~DataDecoder() {
@@ -198,7 +145,7 @@ bool DataDecoder::fillData(int channel, int rawchannel, int edge, int32_t time, 
     }
 
 
-    // log->debug("Channel: {0:d} | Edge: {1:d} | Time: {2:d} | Type: {3:d}", channel, edge, time, (int)type);
+    log->trace("Channel: {0:d} | Edge: {1:d} | Time: {2:d} | Type: {3:d}", channel, edge, time, (int)type);
     assignTime(event, channel, edge, time, type);
     return true;
 }
@@ -264,7 +211,7 @@ uint32_t DataDecoder::processEvent(const char bankName[4], Event dataevent) {
             } else if (IS_GLOBAL_TRAILER(word)) {
 
                 geo = ETTT_GEO(word);
-                //log->debug("[Global Trailer] | GEO: {} | TimeTag: {:d}", geo, timetag*32+geo);
+                log->trace("[Global Trailer] | GEO: {} | TimeTag: {:d}", geo, timetag*32+geo);
                 
                 this_timetag[tdcID] = static_cast<Double_t>(timetag*32+geo) + reset_ctr_time[tdcID] * static_cast<Double_t>(0x100000000) ;
                 if (this_timetag[tdcID] < last_timetag[tdcID]) {
@@ -272,7 +219,7 @@ uint32_t DataDecoder::processEvent(const char bankName[4], Event dataevent) {
                 }
 
                 event.tdcTimeTag = static_cast<Double_t>(timetag*32+geo) + reset_ctr_time[tdcID] * static_cast<Double_t>(0x100000000);
-                //log->debug("[Global Trailer] | GEO: {} | TimeTag: {:f}", geo, event.tdcTimeTag);
+                log->trace("[Global Trailer] | GEO: {} | TimeTag: {:f}", geo, event.tdcTimeTag);
                 last_timetag[tdcID] = event.tdcTimeTag;
                 event.cuspRunNumber = cuspValue;
                 event.timestamp = static_cast<Double_t>(secTime);
@@ -288,7 +235,6 @@ uint32_t DataDecoder::processEvent(const char bankName[4], Event dataevent) {
         }
     } else if (bankN == "GATE") {
         for (size_t i = 0; i < data.size(); i++) {
-            //gateTime = data[0];
             log->trace("[GATE Event] data: {0:x}", data[i]);
             event.eventID = GATE_EVENT(data[i]);
             event.mixGate = (Bool_t)GATE_BOOL(data[i]);
@@ -410,10 +356,10 @@ constexpr int DataDecoder::getChannel(int tdcch) {
         {{-138 ,-139 ,-140 ,-141 ,-142 ,-143 ,-144 ,-999 ,-153 ,-154 ,-155 ,-156 ,-157 ,-158 ,-159 ,-999 }}, // Inner Tiles AmpBoard 23
         {{-168 ,-169 ,-170 ,-171 ,-172 ,-173 ,-174 ,-999 ,-183 ,-184 ,-185 ,-186 ,-187 ,-188 ,-189 ,-999 }}, // Inner Tiles AmpBoard 24
         {{-198 ,-199 ,-200 ,-201 ,-202 ,-203 ,-204 ,-999 ,-213 ,-214 ,-215 ,-216 ,-217 ,-218 ,-219 , 502 }}, // Inner Tiles AmpBoard 25
-        // {{ 300 , 301 , 302 , 303 , 304 , 305 , 306 , 307 , 308 , 309 , 310 , 311 , 312 , 313 , 314 , 503 }}, // BGO 1
-        {{ 300 , 301 , 302 , 303 , 304 , 305 , 306 , 307 , 308 , 309 , 310 , 311 , 312 , 313 , 314 , 315 }}, // BGO 1
+        {{ 300 , 301 , 302 , 303 , 304 , 305 , 306 , 307 , 308 , 309 , 310 , 311 , 312 , 313 , 314 , 503 }}, // BGO 1
+        // {{ 300 , 301 , 302 , 303 , 304 , 305 , 306 , 307 , 308 , 309 , 310 , 311 , 312 , 313 , 314 , 315 }}, // BGO 1
         {{ 316 , 317 , 318 , 319 , 320 , 321 , 322 , 323 , 324 , 325 , 326 , 327 , 328 , 329 , 330 , 331 }}, // BGO 2
-//        {{ 332 , 333 , 334 , 335 , 336 , 337 , 338 , 339 , 340 , 341 , 342 , 343 , 344 , 345 , 346 , 600 }}, // BGO 3
+        // {{ 332 , 333 , 334 , 335 , 336 , 337 , 338 , 339 , 340 , 341 , 342 , 343 , 344 , 345 , 346 , 600 }}, // BGO 3
         {{ 332 , 333 , 334 , 335 , 336 , 337 , 338 , 339 , 340 , 341 , 342 , 343 , 344 , 345 , 346 , 347 }}, // BGO 3
         {{ 348 , 349 , 350 , 351 , 352 , 353 , 354 , 355 , 356 , 357 , 358 , 359 , 360 , 361 , 362 , 363 }}  // BGO 4
     }};
