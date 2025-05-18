@@ -18,7 +18,8 @@ struct TDCEvent {
     UInt_t eventID;
     Double_t timestamp;
     UInt_t cuspRunNumber;
-    Bool_t gate;
+    Bool_t mixGate;
+    Bool_t dumpGate;
     Double_t tdcTimeTag;
     
     std::array<Double_t, 4> trgLE;

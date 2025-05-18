@@ -5,6 +5,10 @@
 #include <vector>
 #include <cstdint>
 #include <cmath>  // For std::nan
+#include <fcntl.h>      // open
+#include <unistd.h>     // fsync, close
+#include <sys/stat.h>
+
 #include <TTree.h>
 #include <TFile.h>
 #include <TObject.h>
@@ -28,6 +32,11 @@ public:
     constexpr int getChannel(int ch);
     void flush();
     const char* getFileName() { return fileName.c_str(); }
+    void closeFile();
+    void openFile();
+    bool fsyncFile(const std::string& fileName);
+    Long64_t checkFileSize(const std::string& fileName);
+    bool isFullyWritten(const std::string& fileName);
 
 private:
     TFile* rootFile;

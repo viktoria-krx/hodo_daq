@@ -308,7 +308,7 @@ unsigned int v1190::BLTRead(DataBank& dataBank) {
         else if (IS_TDC_HEADER(word)) {
             currentEvent.timestamp = DATA_BUNCH_ID(word);
             currentEvent.eventID = DATA_EVENT_ID(word);
-            log->debug("Event {0:d} from {1}", currentEvent.eventID, bankN);
+            //log->debug("Event {0:d} from {1}", currentEvent.eventID, bankN);
             currentEvent.data.push_back(word);
         }
         // Check for Global Trailer (end of event)

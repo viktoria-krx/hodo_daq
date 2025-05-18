@@ -18,6 +18,7 @@ public:
     DataFilter(){};
     ~DataFilter(){};
     void filterAndSend(const char* inputFile, int last_evt, zmq::socket_t& socket);
+    void filterAndSaveAndSend(const char* inputFile, int last_evt, zmq::socket_t& socket);
     void filterAndSave(const char* inputFile, int last_evt);
     void fileSorter(const char* inputFile, int last_evt, const char* outputFileName);
     void convertTime(TDCEvent& event);

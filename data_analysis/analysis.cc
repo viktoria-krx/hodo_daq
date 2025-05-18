@@ -99,6 +99,20 @@ std::string getDataFilename(int runNumber) {
     return filename.str(); 
 }
 
+
+std::string getTmpDataFilename(int runNumber) {
+    std::map<std::string, std::string> config = loadConfig();
+
+    std::ostringstream filename;
+    filename << config["daq_path"] 
+             << config["ana_path"] << "/"
+             << config["ana_prefix"]
+             << std::setw(6) << std::setfill('0') << runNumber
+             << "_tmp.root";
+
+    return filename.str(); 
+}
+
 std::string getLockFilename(int runNumber) {
     std::map<std::string, std::string> config = loadConfig();
 
@@ -149,6 +163,48 @@ void runOfflineAnalysis(int runNumber) {
 }
 
 
+void runOfflineAnalysisAndSend(int runNumber) {
+    auto log = Logger::getLogger();
+    std::string binFile = getBinFilename(runNumber);
+
+    FileReader reader(binFile);
+    if (!reader.isOpen()) {
+        log->error("Could not open file {0}", binFile);
+        return;
+    }
+
+    DataDecoder decoder(getRootFilename(runNumber));
+
+    log->info("Processing binary data ...");
+
+    std::ifstream file(binFile, std::ios::binary);
+    Block block;
+    long last_pos = 0;
+    while (reader.readNextBlock(block, last_pos)) {
+        for (auto& bank : block.banks) {
+            for (auto& event : bank.events) {
+                decoder.processEvent(bank.bankName, event);
+            }   
+        }
+        last_pos = reader.currentPos;
+    }
+
+    log->info("Saving {}", binFile);
+    decoder.writeTree();
+    decoder.flush();
+
+    zmq::context_t context(1);
+    zmq::socket_t socket(context, ZMQ_PUB);
+    socket.bind("tcp://*:5555");
+
+    log->info("Sorting ROOT file, merging TDC Data ...");
+    DataFilter filter;
+    filter.fileSorter(getRootFilename(runNumber).c_str(), 0, getDataFilename(runNumber).c_str());
+    log->info("Filtering ROOT file, saving as EventTree ...");
+    filter.filterAndSaveAndSend(getDataFilename(runNumber).c_str(), 0, socket);
+
+}
+
 long processNewData(FileReader& reader, DataDecoder& decoder, long startPos, uint32_t& lastEvent) {
     Block block;
     long lastPos = startPos;
@@ -186,6 +242,8 @@ void runLiveAnalysis(int runNumber) {
     socket.bind("tcp://*:5555");
 
     DataDecoder decoder(getRootFilename(runNumber));
+    std::string rawRoot = getRootFilename(runNumber);
+    std::string tmpRoot = rawRoot + ".tmp";
 
     const int pollingInterval = 1000; // ms
     long last_pos = 0;
@@ -209,24 +267,43 @@ void runLiveAnalysis(int runNumber) {
 
         if (this_size > last_size && this_size%4 == 0) {
             log->info("New data detected, processing...");
+            decoder.openFile();     // added while debugging
 
             last_pos = processNewData(reader, decoder, last_pos, this_event);
+
             log->info("Saving {}", binFile);
             decoder.writeTree();
             decoder.flush();
+            decoder.closeFile();    // added while debugging
             last_size = this_size;
+
+            // Ensure full flush to disk
+            while (!decoder.fsyncFile(rawRoot)) {
+                log->error("Could not fsync file before copying!");
+                std::this_thread::sleep_for(std::chrono::milliseconds(200));
+                // return; // or handle appropriately
+            }
+
+            std::ifstream src(rawRoot, std::ios::binary);
+            std::ofstream dst(tmpRoot, std::ios::binary);
+            dst << src.rdbuf();
+
+            while (!decoder.isFullyWritten(tmpRoot)) {
+                log->error("File still being copied");
+                std::this_thread::sleep_for(std::chrono::milliseconds(200));
+            }
 
             log->info("Sorting ROOT file, merging TDC Data ...");
             DataFilter filter;
-            filter.fileSorter(getRootFilename(runNumber).c_str(), last_event, getDataFilename(runNumber).c_str());
+            filter.fileSorter(tmpRoot.c_str(), last_event, getDataFilename(runNumber).c_str()); // getRootFilename(runNumber).c_str()
             log->info("Filtering ROOT file, sending to GUI ...");
             filter.filterAndSend(getDataFilename(runNumber).c_str(), last_event, socket);
 
-            
+            std::filesystem::remove(tmpRoot);
             last_event = this_event;
 
         }
-
+        
         
         std::this_thread::sleep_for(std::chrono::milliseconds(pollingInterval));
 
@@ -256,6 +333,7 @@ int main(int argc, char* argv[]) {
     log->debug("Oy!");
 
     bool liveMode = false;
+    bool afterMode = false;
 
     if (argc < 2) {
         log->error("Usage: ./hodo_analysis <run_number>");
@@ -267,6 +345,9 @@ int main(int argc, char* argv[]) {
     if (std::string(argv[1]) == "-l") {
         liveMode = true;
         argIndex++;
+    } else if (std::string(argv[1]) == "-a") {
+        afterMode = true;
+        argIndex++;
     }
 
     if (argIndex >= argc) {
@@ -277,12 +358,21 @@ int main(int argc, char* argv[]) {
     int runNumber = std::stoi(argv[argIndex]);
 
     // Info print
-    log->info("Running in {} mode.", (liveMode ? "LIVE" : "OFFLINE"));
+    if (liveMode) {
+        log->info("Running in LIVE mode.");
+    } else if (afterMode) {
+        log->info("Running in AFTER RUN mode.");
+    } else {
+        log->info("Running in OFFLINE mode.");
+    }
+    // log->info("Running in {} mode.", (liveMode ? "LIVE" : "OFFLINE"));
     log->info("Analyzing run: {:d}", runNumber);
 
     // Now you can call your main logic:
     if (liveMode) {
         runLiveAnalysis(runNumber);
+    } else if (afterMode) {
+        runOfflineAnalysisAndSend(runNumber);
     } else {
         runOfflineAnalysis(runNumber);
     }

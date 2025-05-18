@@ -14,13 +14,14 @@ DataDecoder::DataDecoder(const std::string& outputFile) {
     tree = new TTree("RawEventTree", "TTree holding the raw Hodoscope Data");
 
     // Define Tree Branches
-    tree->Branch("eventID", &event.eventID);
-    tree->Branch("timestamp", &event.timestamp);
-    tree->Branch("cuspRunNumber", &event.cuspRunNumber);
-    tree->Branch("gate", &event.gate);
-    tree->Branch("tdcTimeTag", &event.tdcTimeTag);
-    tree->Branch("trgLE", &event.trgLE);
-    tree->Branch("trgTE", &event.trgTE);
+    tree->Branch("eventID",         &event.eventID);
+    tree->Branch("timestamp",       &event.timestamp);
+    tree->Branch("cuspRunNumber",   &event.cuspRunNumber);
+    tree->Branch("mixGate",         &event.mixGate);
+    tree->Branch("dumpGate",        &event.dumpGate);
+    tree->Branch("tdcTimeTag",      &event.tdcTimeTag);
+    tree->Branch("trgLE",           &event.trgLE);
+    tree->Branch("trgTE",           &event.trgTE);
 
     tree->Branch("hodoIDsLE", &event.hodoIDsLE);     // Inner Downstream Leading Edges
     tree->Branch("hodoIUsLE", &event.hodoIUsLE);     // Inner Upstream Leading Edges
@@ -131,15 +132,6 @@ std::map<int, DetectorType> channelMap = {
 
 
 // Function to classify channels
-// DetectorType getDetectorType(int channel) {
-//     for (const auto& [threshold, type] : channelMap) {
-//         if (channel >= threshold) {
-//             return type;
-//         }
-//     }
-//     return UNKNOWN;
-// }
-
 DetectorType getDetectorType(int channel) {
     if (channel < 0) {
         if (channel > -50) return HODO_IDs;         // Inner Downstream Bars
@@ -151,7 +143,7 @@ DetectorType getDetectorType(int channel) {
         else if (channel >= 100 && channel < 250) return TILE_OT;   // Outer Tiles
         else if (channel >= 300 && channel < 400) return BGO;       // BGO
         else if (channel >= 500 && channel < 600) return TRG;       // Trigger
-        else if (channel == 600) return GATE;                       // Gate
+        // else if (channel == 600) return GATE;                       // Gate
         return UNKNOWN;                                             // For any unknown channels
     }
 }
@@ -172,7 +164,7 @@ void assignTime(TDCEvent &event, int channel, int edge, int32_t time, DetectorTy
         case BGO:      storage = (edge == 0) ? &event.bgoTE[channel]    : &event.bgoLE[channel]; break;
         case TRG:      storage = (edge == 0) ? &event.trgTE[channel]    : &event.trgLE[channel]; break;
         case UNKNOWN: 
-            if (channel == 600) { event.gate = true; }
+            // if (channel == 600) { event.mixGate = true; }
             return;
     }
 
@@ -243,14 +235,16 @@ uint32_t DataDecoder::processEvent(const char bankName[4], Event dataevent) {
 
                 event.tdcID = tdcID;
 
-                // log->debug("[TDC Hit] Bank: {0} | Raw Ch: {1:d} | TDC ID: {2} | Ch: {3:d} | Time: {4:d}", bankN, rawch, tdcID, ch, data_time);
+                log->trace("[TDC Hit] Bank: {0} | Raw Ch: {1:d} | TDC ID: {2} | Ch: {3:d} | Time: {4:d}", bankN, rawch, tdcID, ch, data_time);
                 
             } else if (IS_TDC_HEADER(word)) {
-                // log->debug("[TDC Header] Bank: {}", bankN);
+
+                log->trace("[TDC Header] Bank: {}", bankN);
+
             } else if (IS_TRIGGER_TIME_TAG(word)) {
 
                 timetag = DATA_MEAS(word);
-                // log->debug("[TDC ETTT] Bank: {}", bankN);
+                log->trace("[TDC ETTT] Bank: {}", bankN);
 
             } else if (IS_TDC_TRAILER(word)) {
 
@@ -260,9 +254,13 @@ uint32_t DataDecoder::processEvent(const char bankName[4], Event dataevent) {
                 }
                 event.eventID = DATA_EVENT_ID(word) + reset_ctr[tdcID] * 0x1000 ;
                 last_evt[tdcID] = event.eventID;
-                // log->debug("[TDC Trailer] Bank: {} | Event ID: {}", bankN, event.eventID);
+
+                log->trace("[TDC Trailer] Bank: {} | Event ID: {}", bankN, event.eventID);
+
             } else if (IS_GLOBAL_HEADER(word)) {
-                // log->debug("[Global Header]");
+
+                log->trace("[Global Header]");
+
             } else if (IS_GLOBAL_TRAILER(word)) {
 
                 geo = ETTT_GEO(word);
@@ -278,7 +276,8 @@ uint32_t DataDecoder::processEvent(const char bankName[4], Event dataevent) {
                 last_timetag[tdcID] = event.tdcTimeTag;
                 event.cuspRunNumber = cuspValue;
                 event.timestamp = static_cast<Double_t>(secTime);
-                event.gate = gateValue; 
+                event.mixGate = gateValue; 
+
                 tree->Fill();
                 lastEventID = event.eventID;
                 event.reset();
@@ -288,11 +287,17 @@ uint32_t DataDecoder::processEvent(const char bankName[4], Event dataevent) {
             }
         }
     } else if (bankN == "GATE") {
-        if (!data.empty()) {
-            gateTime = data[0];
-            log->debug("[GATE Event] Time: {0:d}", gateTime);
-            //tree->Fill();
-            //event.reset();
+        for (size_t i = 0; i < data.size(); i++) {
+            //gateTime = data[0];
+            log->trace("[GATE Event] data: {0:x}", data[i]);
+            event.eventID = GATE_EVENT(data[i]);
+            event.mixGate = (Bool_t)GATE_BOOL(data[i]);
+            event.dumpGate = (Bool_t)DUMP_BOOL(data[i]);
+            log->trace("[GATE Decode] eventID: 0x{0:x}, mixGate: 0x{1:x}, dumpGate: 0x{2:x}",
+                event.eventID, event.mixGate, event.dumpGate);
+            event.tdcID = 4;
+            tree->Fill();
+            event.reset();
         }
     } else if (bankN == "CUSP") {
         if (!data.empty()) {
@@ -329,7 +334,50 @@ void DataDecoder::writeTree() {
     //std::cout << "ROOT file saved.\n";
 }
 
+void DataDecoder::closeFile() {
+    if(rootFile && rootFile->IsOpen()){
+        rootFile->Close();
+    }
+}
 
+void DataDecoder::openFile() {
+    if (!rootFile) {
+        rootFile = new TFile(getFileName(), "UPDATE");
+    }
+}
+
+bool DataDecoder::fsyncFile(const std::string& filename) {
+    int fd = open(filename.c_str(), O_RDONLY);
+    if (fd == -1) {
+        perror(("open: " + filename).c_str());
+        return false;
+    }
+
+    if (fsync(fd) == -1) {
+        perror(("fsync: " + filename).c_str());
+        close(fd);
+        return false;
+    }
+
+    close(fd);
+    return true;
+}
+
+Long64_t DataDecoder::checkFileSize(const std::string& filename) {
+    TFile file(filename.c_str(), "READ");
+    Long64_t expectedSize = file.GetEND();
+    file.Close();
+    return expectedSize;
+}
+
+bool DataDecoder::isFullyWritten(const std::string& filename) {
+    struct stat st;
+    if (stat(filename.c_str(), &st) != 0) return false;
+
+    Long64_t expectedSize = checkFileSize(filename);
+
+    return st.st_size == expectedSize;
+}
 
 constexpr int DataDecoder::getChannel(int tdcch) {
     // Ensure tdcch is within a valid range
@@ -362,9 +410,11 @@ constexpr int DataDecoder::getChannel(int tdcch) {
         {{-138 ,-139 ,-140 ,-141 ,-142 ,-143 ,-144 ,-999 ,-153 ,-154 ,-155 ,-156 ,-157 ,-158 ,-159 ,-999 }}, // Inner Tiles AmpBoard 23
         {{-168 ,-169 ,-170 ,-171 ,-172 ,-173 ,-174 ,-999 ,-183 ,-184 ,-185 ,-186 ,-187 ,-188 ,-189 ,-999 }}, // Inner Tiles AmpBoard 24
         {{-198 ,-199 ,-200 ,-201 ,-202 ,-203 ,-204 ,-999 ,-213 ,-214 ,-215 ,-216 ,-217 ,-218 ,-219 , 502 }}, // Inner Tiles AmpBoard 25
-        {{ 300 , 301 , 302 , 303 , 304 , 305 , 306 , 307 , 308 , 309 , 310 , 311 , 312 , 313 , 314 , 503 }}, // BGO 1
+        // {{ 300 , 301 , 302 , 303 , 304 , 305 , 306 , 307 , 308 , 309 , 310 , 311 , 312 , 313 , 314 , 503 }}, // BGO 1
+        {{ 300 , 301 , 302 , 303 , 304 , 305 , 306 , 307 , 308 , 309 , 310 , 311 , 312 , 313 , 314 , 315 }}, // BGO 1
         {{ 316 , 317 , 318 , 319 , 320 , 321 , 322 , 323 , 324 , 325 , 326 , 327 , 328 , 329 , 330 , 331 }}, // BGO 2
-        {{ 332 , 333 , 334 , 335 , 336 , 337 , 338 , 339 , 340 , 341 , 342 , 343 , 344 , 345 , 346 , 600 }}, // BGO 3
+//        {{ 332 , 333 , 334 , 335 , 336 , 337 , 338 , 339 , 340 , 341 , 342 , 343 , 344 , 345 , 346 , 600 }}, // BGO 3
+        {{ 332 , 333 , 334 , 335 , 336 , 337 , 338 , 339 , 340 , 341 , 342 , 343 , 344 , 345 , 346 , 347 }}, // BGO 3
         {{ 348 , 349 , 350 , 351 , 352 , 353 , 354 , 355 , 356 , 357 , 358 , 359 , 360 , 361 , 362 , 363 }}  // BGO 4
     }};
 
@@ -383,174 +433,3 @@ void DataDecoder::flush() {
 }
 
 
-
-
-
-// bool DataDecoder::fillData(int channel, int edge, int32_t time, TDCEvent event) {
-
-//     if (edge == 0) {            // TE for signals from FPGA, LE for direct signals
-
-//         if (channel < 0 && channel > -50 ) {    // Inner Downstream Bars
-
-//             channel = channel * -1;
-//             if (channel == 32) { channel = 0; }
-
-//             if (event.hodoIDsTE[channel] < 0 ) { event.hodoIDsTE[channel] = 0; }
-//             if (event.hodoIDsTE[channel] != 0 && time > event.hodoIDsTE[channel] ) continue;
-            
-//             event.hodoIDsTE[channel] = time;
-
-//         } else if (channel <= -50 && channel > -90) {   // Inner Upstream Bars
-
-//             channel = (channel + 50) * -1;
-//             if (channel == 32) { channel = 0; }
-
-//             if (event.hodoIUsTE[channel] < 0 ) { event.hodoIUsTE[channel] = 0; }
-//             if (event.hodoIUsTE[channel] != 0 && time > event.hodoIUsTE[channel] ) continue;
-            
-//             event.hodoIUsTE[channel] = time;
-
-//         } else if (channel < -90) {     // Inner Tiles
-//             channel = (channel + 100) * -1;
-
-//             if (event.tileITE[channel] < 0 ) { event.tileITE[channel] = 0; }
-//             if (event.tileITE[channel] != 0 && time > event.tileITE[channel] ) continue;
-            
-//             event.tileITE[channel] = time;
-
-//         } else if (channel >= 1 && channel < 50){   // Outer Downstream Bars
-
-//             if (channel == 32) { channel = 0; }
-
-//             if (event.hodoODsTE[channel] < 0 ) { event.hodoODsTE[channel] = 0; }
-//             if (event.hodoODsTE[channel] != 0 && time > event.hodoODsTE[channel] ) continue;
-            
-//             event.hodoODsTE[channel] = time;
-
-//         } else if (channel >= 50 && channel < 90) {     // Outer Upstream Bars
-
-//             channel = channel - 50;
-//             if (channel == 32) { channel = 0; }
-
-//             if (event.hodoOUsTE[channel] < 0 ) { event.hodoOUsTE[channel] = 0; }
-//             if (event.hodoOUsTE[channel] != 0 && time > event.hodoOUsTE[channel] ) continue;
-            
-//             event.hodoOUsTE[channel] = time;
-
-//         } else if (channel >= 100 && channel < 250) {   // Outer Tiles
-            
-//             channel = channel - 100; 
-
-//             if (event.tileOTE[channel] < 0 ) { event.tileOTE[channel] = 0; }
-//             if (event.tileOTE[channel] != 0 && time > event.tileOTE[channel] ) continue;
-            
-//             event.tileOTE[channel] = time;
-
-//         } else if (channel >= 300 && channel < 400) {       // BGO
-
-//             channel = channel - 300;
-
-//             if (event.bgoTE[channel] < 0 ) { event.bgoTE[channel] = 0; }
-//             if (event.bgoTE[channel] != 0 && time > event.bgoTE[channel] ) continue;
-            
-//             event.bgoTE[channel] = time;
-
-//         } else if (channel >= 500 && channel < 600) {       // Trigger
-//             channel = channel - 500;
-
-//             if (event.trgTE[channel] < 0 ) { event.trgTE[channel] = 0; }
-//             if (event.trgTE[channel] != 0 && time > event.trgTE[channel] ) continue;
-            
-//             event.trgTE[channel] = time;
-
-//         } else if (channel == 600) {        // Gate -- to be removed
-//             event.gate = true;
-//         }
-
-
-//     } else if edge == 1 {
-
-
-//         if (channel < 0 && channel > -50 ) {    // Inner Downstream Bars
-
-//             channel = channel * -1;
-//             if (channel == 32) { channel = 0; }
-
-//             if (event.hodoIDsLE[channel] < 0 ) { event.hodoIDsLE[channel] = 0; }
-//             if (event.hodoIDsLE[channel] != 0 && time > event.hodoIDsLE[channel] ) continue;
-            
-//             event.hodoIDsLE[channel] = time;
-
-//         } else if (channel <= -50 && channel > -90) {   // Inner Upstream Bars
-
-//             channel = (channel + 50) * -1;
-//             if (channel == 32) { channel = 0; }
-
-//             if (event.hodoIUsLE[channel] < 0 ) { event.hodoIUsLE[channel] = 0; }
-//             if (event.hodoIUsLE[channel] != 0 && time > event.hodoIUsLE[channel] ) continue;
-            
-//             event.hodoIUsLE[channel] = time;
-
-//         } else if (channel < -90) {     // Inner Tiles
-//             channel = (channel + 100) * -1;
-
-//             if (event.tileILE[channel] < 0 ) { event.tileILE[channel] = 0; }
-//             if (event.tileILE[channel] != 0 && time > event.tileILE[channel] ) continue;
-            
-//             event.tileILE[channel] = time;
-
-//         } else if (channel >= 1 && channel < 50){   // Outer Downstream Bars
-
-//             if (channel == 32) { channel = 0; }
-
-//             if (event.hodoODsLE[channel] < 0 ) { event.hodoODsLE[channel] = 0; }
-//             if (event.hodoODsLE[channel] != 0 && time > event.hodoODsLE[channel] ) continue;
-            
-//             event.hodoODsLE[channel] = time;
-
-//         } else if (channel >= 50 && channel < 90) {     // Outer Upstream Bars
-
-//             channel = channel - 50;
-//             if (channel == 32) { channel = 0; }
-
-//             if (event.hodoOUsLE[channel] < 0 ) { event.hodoOUsLE[channel] = 0; }
-//             if (event.hodoOUsLE[channel] != 0 && time > event.hodoOUsLE[channel] ) continue;
-            
-//             event.hodoOUsLE[channel] = time;
-
-//         } else if (channel >= 100 && channel < 250) {   // Outer Tiles
-            
-//             channel = channel - 100; 
-
-//             if (event.tileOLE[channel] < 0 ) { event.tileOLE[channel] = 0; }
-//             if (event.tileOLE[channel] != 0 && time > event.tileOLE[channel] ) continue;
-            
-//             event.tileOLE[channel] = time;
-
-//         } else if (channel >= 300 && channel < 400) {   // BGO
-
-//             channel = channel - 300;
-
-//             if (event.bgoLE[channel] < 0 ) { event.bgoLE[channel] = 0; }
-//             if (event.bgoLE[channel] != 0 && time > event.bgoLE[channel] ) continue;
-            
-//             event.bgoLE[channel] = time;
-
-//         } else if (channel >= 500 && channel < 600) {   // Trigger
-//             channel = channel - 500;
-
-//             if (event.trgLE[channel] < 0 ) { event.trgLE[channel] = 0; }
-//             if (event.trgTE[channel] != 0 && time > event.trgLE[channel] ) continue;
-            
-//             event.trgLE[channel] = time;
-
-//         } else if (channel == 600) {        // Gate -- to be removed
-//             event.gate = true;
-//         }
-
-
-//     }
-
-//     return true;
-    
-// }

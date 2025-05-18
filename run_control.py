@@ -15,7 +15,7 @@ import sys
 from datetime import datetime
 import socket
 from PIL import Image, ImageTk  
-from tkinter import messagebox
+from tkinter import messagebox, font
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
@@ -24,7 +24,7 @@ from matplotlib.patches import Rectangle
 from matplotlib.colors import Normalize
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 import zmq
-
+import traceback
 
 # Setup for plotting
 plt.style.use("ggplot")
@@ -115,15 +115,15 @@ class DAQControllerApp:
         # Set the size of the GUI window:
         screen_width = self.root.winfo_screenwidth()
         screen_height = self.root.winfo_screenheight()
-        self.root.geometry(f"{int(screen_width*0.55)}x{int(screen_height*0.9)}+0+0")
+        self.root.geometry(f"{int(screen_width*0.55)}x{int(screen_height*1)}+0+0")
         # print(f"{int(screen_width*0.55)}x{int(screen_height*0.9)}")
 
         # Define fonts:
         self.font_size = max(12, int(screen_height / 120))  # Scale with screen height, min size 12
-        self.button_font = ("clean", self.font_size)
-        self.label_font = ("clean", self.font_size)
+        self.button_font = ("clean", int(self.font_size), "bold")
+        self.label_font = ("clean", int(self.font_size))
         self.text_font = ("clean", int(self.font_size))
-        self.title_font = ("clean", int(self.font_size*1.5))
+        self.title_font = ("clean", int(self.font_size*2.4))
 
         # Configure ttk Style
         style = ttk.Style()
@@ -133,20 +133,20 @@ class DAQControllerApp:
 
         # Define the GUI grid: 
         self.root.grid_rowconfigure(0, weight=2, minsize=100)           # Just the title
-        self.root.grid_rowconfigure((1,2,3,4,6), weight=1, minsize=60)  # Rows with buttons
-        self.root.grid_rowconfigure(5, weight=2, minsize=100)           # Row with plots
+        self.root.grid_rowconfigure((1,2,3,4,5,7), weight=1, minsize=60)  # Rows with buttons
+        self.root.grid_rowconfigure(6, weight=2, minsize=100)           # Row with plots
         self.root.grid_columnconfigure((0, 1, 2, 3, 4, 5), weight=1, minsize=120)
 
         # Console output to text box
         self.console_output = ttk.Text(root, height=10, width=300, wrap="word", state="disabled", font=self.text_font)
-        self.console_output.grid(row=6, column=0, columnspan=6, sticky="s", padx=20, pady=20)
+        self.console_output.grid(row=7, column=0, columnspan=6, sticky="s", padx=20, pady=20)
         # Redirect stdout & stderr
         self.console = ConsoleRedirector(self.console_output)
         sys.stdout = self.console
         sys.stderr = self.console 
         # Scrollbar
         self.scrollbar = ttk.Scrollbar(root, command=self.console_output.yview, bootstyle="info-round", orient="vertical")
-        self.scrollbar.grid(row=6, column=6, sticky="nse")
+        self.scrollbar.grid(row=7, column=6, sticky="nse", padx=3)
         self.console_output.config(yscrollcommand=self.scrollbar.set)
 
         # Read configuration file
@@ -225,9 +225,32 @@ class DAQControllerApp:
         self.live_analysis_var = ttk.BooleanVar()
         self.live_analysis_checkbox = ttk.Checkbutton(root, text=" ", variable=self.live_analysis_var, 
                                                       command=self.toggle_live_analysis, bootstyle="success-round-toggle", state="disabled")
-        self.live_analysis_checkbox.grid(row=4, column=0, sticky="ne", padx=0, pady=10)
+        self.live_analysis_checkbox.grid(row=4, column=1, sticky="ne", padx=0, pady=10)
         self.live_analysis_label = ttk.Label(root, text="Live Analysis", font=self.label_font, bootstyle="secondary")
-        self.live_analysis_label.grid(row=4, column=0, sticky="nw", padx=40, pady=10)
+        self.live_analysis_label.grid(row=4, column=1, sticky="nw", padx=40, pady=10)
+
+        self.analysis_after_var = ttk.BooleanVar()
+        self.analysis_after_checkbox = ttk.Checkbutton(root, text=" ", variable=self.analysis_after_var, 
+                                                      command=self.toggle_analysis_after, bootstyle="success-round-toggle", state="disabled")
+        self.analysis_after_checkbox.grid(row=4, column=0, sticky="ne", padx=0, pady=10)
+        self.analysis_after_label = ttk.Label(root, text="Analysis After", font=self.label_font, bootstyle="secondary")
+        self.analysis_after_label.grid(row=4, column=0, sticky="nw", padx=25, pady=10)
+
+        self.last_run_nr = ""
+        self.last_run_cusp = ""
+        self.last_run_events = ""
+        self.last_run_events_gate = ""
+        self.last_run_frame = ttk.Frame(root, bootstyle="dark")
+        self.last_run_frame.grid(row=5, column=0, columnspan=7, sticky="nsew", padx=10)
+        self.last_run_number = ttk.Label(root, text=f"Last Run: {self.last_run_nr} \t\t CUSP Nr: {self.last_run_cusp} \t\t Total Events: {self.last_run_events} \t\t Mixing Events: {self.last_run_events_gate}", 
+                                         font=self.button_font, width=8, bootstyle="inverse-dark")
+        self.last_run_number.grid(row=5, column=0, columnspan=7, sticky="nwse", padx=60, pady=10)
+        #self.last_run_cusp_number = ttk.Label(root, text=f"CUSP Nr: {self.last_run_cusp}", font=self.label_font, width=8, bootstyle="inverse-dark")
+        #self.last_run_cusp_number.grid(row=5, column=1, sticky="nwse", padx=20, pady=10)
+        #self.last_run_event_counter = ttk.Label(root, text=f"Total Events: {self.last_run_events}", font=self.label_font, width=8, bootstyle="inverse-dark")
+        #self.last_run_event_counter.grid(row=5, column=2, sticky="nwse", padx=20, pady=10)
+        #self.last_run_event_gate_counter = ttk.Label(root, text=f"Mixing Events: {self.last_run_events_gate}", font=self.label_font, width=8, bootstyle="inverse-dark")
+        #self.last_run_event_gate_counter.grid(row=5, column=3, sticky="nwse", padx=20, pady=10)
 
         # Create plots
         self.setup_plots()
@@ -242,11 +265,13 @@ class DAQControllerApp:
         # Data arrays for event plot
         self.event_times = []
         self.seen_event_ids = set()
+        self.gated_event_ids = set()
 
         # Create the event plot
         self.fig1, self.ax1 = plt.subplots(figsize=(500*px, 500*px))
         self.fig1.patch.set_alpha(0.0)
-        self.line, = self.ax1.plot([], [], marker='.', linestyle='-', label="Events: 0")
+        self.line, = self.ax1.plot([], [], marker='.', linestyle='-', markersize=3, label="Events: 0")
+        self.line2, = self.ax1.plot([], [], marker='.', linestyle='-', markersize=3, label="Mixing Events: 0", color="C2")
         self.ax1.legend()
         self.ax1.set_xlabel("TDC Time Tag (s)")
         self.ax1.set_ylabel("Events")
@@ -255,7 +280,7 @@ class DAQControllerApp:
         # Embed the matplotlib plot in tkinter, in grid row 5
         self.canvas1 = FigureCanvasTkAgg(self.fig1, master=self.root) 
         self.canvas_widget1 = self.canvas1.get_tk_widget()
-        self.canvas_widget1.grid(row=5, column=0, columnspan=3, padx=0, pady=40, sticky="se") 
+        self.canvas_widget1.grid(row=6, column=0, columnspan=3, padx=1, pady=40, sticky="new") 
         #self.fig1.tight_layout()
         self.canvas1.draw()
 
@@ -305,7 +330,7 @@ class DAQControllerApp:
         # Embed the matplotlib plot in tkinter, in grid row 5
         self.canvas2 = FigureCanvasTkAgg(self.fig2, master=self.root) 
         self.canvas_widget2 = self.canvas2.get_tk_widget()
-        self.canvas_widget2.grid(row=5, column=3, columnspan=3, padx=0, pady=40, sticky="sw") 
+        self.canvas_widget2.grid(row=6, column=3, columnspan=3, padx=1, pady=40, sticky="new") 
         #self.fig2.tight_layout()
         self.canvas2.draw()
 
@@ -342,6 +367,8 @@ class DAQControllerApp:
         self.clear_plot2(self.ax2, self.canvas2)
         self.cusp_number_at_start = self.cusp_number
         self.toggle_live_analysis()
+        self.toggle_analysis_after()
+        
 
     def stop_run(self):
         self.send_command("stop")
@@ -350,14 +377,16 @@ class DAQControllerApp:
         self.stop_daq_button.config(state="normal")
         self.run_running = False
         self.run_progress_bar["value"] = 0
-        self.run_progress_bar["text"] = "Not Running"
+        self.run_progress_bar.configure(text="Not Running", bootstyle="dark")
         lockfile = f"./tmp/hodo_run_{self.run_number}.lock"     # Lockfile is deleted when the run is stopped. 
         if os.path.exists(lockfile):
             os.remove(lockfile)
         # To make sure all missing events are still transferred from the C++ analysis I wait 3 seconds before creating the files:
-        self.root.after(3000, lambda: self.save_plot( self.ax1, self.fig1, f"{self.cusp_number_at_start}_run_{self.run_number:0>5}_events"))
-        self.root.after(3000, lambda: self.save_plot( self.ax2, self.fig2, f"{self.cusp_number_at_start}_run_{self.run_number:0>5}_bgo"))
-
+        if self.live_analysis_enabled:
+            self.root.after(3000, lambda: self.save_plot( self.ax1, self.fig1, f"{self.cusp_number_at_start}_run_{self.run_number:0>5}_events"))
+            self.root.after(3000, lambda: self.save_plot( self.ax2, self.fig2, f"{self.cusp_number_at_start}_run_{self.run_number:0>5}_bgo"))
+        if self.analysis_after_enabled:
+            threading.Thread(target=self.after_analysis_monitor, daemon=True).start()
         
 
     def pause_daq(self):
@@ -405,6 +434,8 @@ class DAQControllerApp:
         self.auto_run_enabled = True
         self.live_analysis_checkbox.config(state="normal")
         self.live_analysis_label.config(bootstyle="success")
+        self.analysis_after_checkbox.config(state="normal")
+        self.analysis_after_label.config(bootstyle="success")
         self.stop_daq_button.config(state="normal")
 
     def read_config(self):
@@ -449,13 +480,13 @@ class DAQControllerApp:
         """Updates the Floodgauge every second while data is being taken."""
         self.run_progress_bar["value"] = 0  # Reset gauge at start
         self.run_progress_bar["maximum"] = self.run_duration_var.get()  # Set max duration
-        self.run_progress_bar.configure(text="Running...", bootstyle="success")
+        self.run_progress_bar.configure(text="Running...", bootstyle="info")
         
         self.run_progress_bar["value"] = elapsed_time
-        # self.run_progress_bar["text"] = f"{elapsed_time} / {self.run_duration_var.get()} sec"
+        self.run_progress_bar.configure(text = f"Running...   {elapsed_time} sec")
 
         if elapsed_time < self.run_duration_var.get() and self.run_running:
-            self.root.after(1000, self.update_floodgauge, elapsed_time + 1)  # Call itself after 1 sec
+            self.root.after(1000, lambda: self.update_floodgauge(elapsed_time + 1))  # Call itself after 1 sec
         if not self.run_running:
             self.run_progress_bar["value"] = 0
             self.run_progress_bar.configure(text="Not Running", bootstyle="dark")
@@ -532,7 +563,7 @@ class DAQControllerApp:
         geometry = f"80x24+1140+400"
         self.live_process = subprocess.Popen(["gnome-terminal", f"--geometry={geometry}", 
                                               "--title=Live Analysis Terminal", "--", "bash", "-c", 
-                                              f"cd data_analysis/build; ./hodo_analysis -l {str(self.run_number)}"]) #add ; exec bash to keep window open
+                                              f"cd data_analysis/build; ./hodo_analysis -l {str(self.run_number)}; exec bash"]) #add ; exec bash to keep window open
 
         try:
             while self.live_analysis_enabled:
@@ -542,20 +573,98 @@ class DAQControllerApp:
                 except zmq.Again:
                     time.sleep(0.1)  # Avoid busy wait
         except Exception as e:
-            self.console.write("Live analysis error:", e)
+            self.console.write("Live analysis error:", str(e))
+            traceback.print_exc()
         finally:
             socket.close()
             context.term()
             if self.live_process.poll() is None:
                 self.live_process.terminate()
 
+    def toggle_analysis_after(self):
+        """Enables or disables automatic analysis after each run."""
+        if self.analysis_after_var.get() and self.run_running:
+            self.analysis_after_enabled = True
+            # threading.Thread(target=self.after_analysis_monitor, daemon=True).start()
+        elif self.analysis_after_var.get() and not self.run_running:
+            self.analysis_after_enabled = True
+        else:
+            self.analysis_after_enabled = False
+
+
+    def after_analysis_monitor(self):
+        """Starts analysis and waits for incoming data."""
+        context = zmq.Context()
+        socket = context.socket(zmq.SUB)
+        socket.connect("tcp://localhost:5555")
+        socket.setsockopt_string(zmq.SUBSCRIBE, "") 
+        geometry = f"80x24+1140+400"
+        self.live_process = subprocess.Popen(["gnome-terminal", f"--geometry={geometry}", 
+                                              "--title=Live Analysis Terminal", "--", "bash", "-c", 
+                                              f"cd data_analysis/build; ./hodo_analysis -a {str(self.run_number)}; exec bash"]) #add ; exec bash to keep window open
+
+        try:
+            while self.analysis_after_enabled:
+                try:
+                    message = socket.recv_string(flags=zmq.NOBLOCK)
+                    #self.console.write(f"Received message: {repr(message)}")
+                    self.process_live_data(message)
+                except zmq.Again:
+                    time.sleep(0.1)  # Avoid busy wait
+        except Exception as e:
+            self.console.write("Live analysis error:", str(e))
+            traceback.print_exc()
+        finally:
+            socket.close()
+            context.term()
+            if self.live_process.poll() is None:
+                self.live_process.terminate()
+
+
     def process_live_data(self, message):
         """Extracts the data form the recieved string"""
         tokens = message.strip().split()
-        event_id = int(tokens[0])
-        tdc_time = float(tokens[1])*1e-9
-        active_channels = list(map(int, tokens[2:]))
-        self.console.write(f"Event {event_id}, Time {tdc_time}, Channels: {active_channels}")
+        if not tokens:
+            return  # Skip empty messages
+    
+        if tokens[0] == "END":
+            if len(tokens) != 3:
+                self.console.write(f"END message has wrong length: {message}")
+                return
+            try:
+                sum_events = int(tokens[1])
+                sum_events_gated = int(tokens[2])
+            except ValueError:
+                self.console.write(f"Invalid number in END message: {message}")
+                return
+            self.update_plot()
+            self.last_run_nr = self.run_number
+            self.last_run_cusp = self.cusp_number_at_start
+            self.last_run_events = sum_events
+            self.last_run_events_gate = sum_events_gated
+
+            self.last_run_number.config(text=f"Last Run: {self.last_run_nr} \t CUSP Nr: {self.last_run_cusp} \t Total Events: {self.last_run_events} \t Mixing Events: {self.last_run_events_gate}")
+            #self.last_run_cusp_number.config(text=f"CUSP Nr: {self.last_run_cusp}")
+            #self.last_run_event_counter.config(text=f"Total Events: {self.last_run_events}")
+            #self.last_run_event_gate_counter.config(text=f"Mixing Events: {self.last_run_events_gate}")
+
+            self.root.after(3000, lambda: self.save_plot( self.ax1, self.fig1, f"{self.cusp_number_at_start}_run_{self.run_number:0>5}_events"))
+            self.root.after(3000, lambda: self.save_plot( self.ax2, self.fig2, f"{self.cusp_number_at_start}_run_{self.run_number:0>5}_bgo"))
+
+            return
+
+        if len(tokens) < 3:
+            self.console.write(f"END message has wrong length: {message}")
+            return
+        try:
+            event_id = int(tokens[0])
+            tdc_time = float(tokens[1])*1e-9
+            gate = int(tokens[2])
+            active_channels = list(map(int, tokens[3:]))
+            self.console.write(f"Event {event_id}, Time {tdc_time:.2f}, Gate: {gate}, Channels: {active_channels}")
+        except ValueError as ve:
+            self.console.write(f"Invalid event data: {message}")
+            return
 
         if event_id in self.seen_event_ids:
             return 
@@ -565,8 +674,11 @@ class DAQControllerApp:
             if ch < 64:
                 self.BGO_counts[ch] +=1
 
-        self.event_times.append([tdc_time, event_id])
-        self.update_plot()
+        self.event_times.append([tdc_time, event_id, gate])
+        if self.live_analysis_enabled:
+            self.update_plot()
+        # if self.analysis_after_enabled:
+        #     self.root.after(5000, self.update_plot)
 
 
     def update_plot(self):
@@ -574,9 +686,13 @@ class DAQControllerApp:
             return
         tdc_times = np.array(self.event_times)[:,0]
         tdc_event = np.arange(1, len(self.event_times) + 1) # np.array(self.event_times)[:,1]
+        tdc_gates = np.array(self.event_times)[:,2]
+        tdc_event_gated = np.arange(1, len(np.ma.array(np.array(self.event_times)[:,1], mask = tdc_gates).compressed()) +1 )
 
         self.line.set_data(tdc_times, tdc_event)
         self.line.set_label(f"Events: {np.max(tdc_event)}")
+        self.line2.set_data(np.ma.array(tdc_times, mask=tdc_gates).compressed(), tdc_event_gated)
+        self.line2.set_label(f"Mixing Events: {np.max(tdc_event_gated)}")
         self.ax1.legend()
         self.ax1.relim()
         self.ax1.autoscale_view()
@@ -624,6 +740,7 @@ class DAQControllerApp:
         """Clears event plot, texts and outlines are light again"""
         self.event_times.clear()
         self.line.set_data([], [])
+        self.line2.set_data([], [])
         axis.tick_params(colors='white')  # Tick label color
         axis.xaxis.label.set_color('lightgray')
         axis.yaxis.label.set_color('lightgray')

@@ -22,7 +22,16 @@ int v2495::init(int fpgaId){
 
     if (checkModuleResponse()) {
 
-        return cvSuccess;
+        log->debug("Resetting Event Counter");
+        
+        ret = (CAEN_PLU_ERROR_CODE)resetCounter();
+
+        if (ret == cvSuccess) {
+            return cvSuccess;
+        } else {
+            log->error("Counter could not be reset, Error: {:d}", (int)ret);
+        }
+
 
     } else {
         return cvGenericError;
@@ -109,86 +118,89 @@ uint64_t v2495::getBaseAddr() {
 }
 
 int v2495::readRegister(uint32_t regAddress){
-
-    addr = (int)getBaseAddr(); + regAddress;
+    addr = (int)getBaseAddr() + regAddress;
     unsigned short reg = 0;
     vmeError |= CAENVME_ReadCycle(handle, addr, &reg, cvA32_U_DATA, cvD16);
-    // CAEN_PLU_ReadReg(handle, addr, data);
-
     return reg;
-
 }
 
+
+int v2495::readRegister32(uint32_t regAddress){
+    addr = (int)getBaseAddr() + regAddress;
+    uint32_t reg = 0;
+    vmeError |= CAENVME_ReadCycle(handle, addr, &reg, cvA32_U_DATA, cvD32);
+    return reg;
+}
 
 int v2495::setRegister(uint32_t value, uint32_t regAddress){
-
-    addr = (int)getBaseAddr(); + regAddress;
+    addr = (int)getBaseAddr() + regAddress;
     vmeError |= CAENVME_WriteCycle(handle, addr, &value, cvA32_U_DATA, cvD16);
-    // CAEN_PLU_WriteReg(handle, addr, value);
-
-    return 0;
-
+    return vmeError;
 }
 
-int v2495::readFIFO(DataBank& dataBank, uint32_t regAddress) {
+int v2495::resetCounter() {
+    vmeError |= setRegister(0x1, SCI_REG_reset_cnt);
+    vmeError |= setRegister(0x0, SCI_REG_reset_cnt);
+    return vmeError;
+}
+
+int v2495::startGateList() {
+    vmeError |= setRegister(0x2, SCI_REG_Gate_CONFIG);
+    vmeError |= setRegister(0x1, SCI_REG_Gate_CONFIG);
+    return vmeError;
+}
+
+
+int v2495::readList(DataBank& dataBank, uint32_t regAddressList, uint32_t regAddressStatus) {
 
     auto log = Logger::getLogger();
-
-    unsigned int* buff = NULL;
+    uint32_t* buff = NULL;
     int BufferSize;
-
     BufferSize = 1024 * 1024;
-	if ((buff = (unsigned int*)malloc(BufferSize)) == NULL) {
-		// printf("Can't allocate memory buffer of %d KB\n", BufferSize / 1024);
-        
+	if ((buff = (uint32_t*)malloc(BufferSize)) == NULL) {
         log->error("Can't allocate memory buffer of {:d} KB\n", BufferSize / 1024);
 	}
+    std::string bankN(dataBank.bankName, 4);
 
-    addr = getBaseAddr() + regAddress;
-
-    int n_words = 0; 
-
-    // int ret = CAEN_PLU_ReadFIFO32(handle, addr, BufferSize, buff, &n_words);
-    int ret = CAENVME_FIFOBLTReadCycle(handle, addr, buff, BufferSize, cvA32_U_DATA, cvD16, &n_words);
-
-    if (ret != cvSuccess && ret != cvBusError) {
-        // std::cerr << "FIFO Readout Error" << std::endl;
-        log->error("FIFO Readout Error");
-        return ret;
-    }
-
-    // printf("%i words read\n", n_words);
-    log->debug("{:d} words read", n_words);
-
+    uint32_t ListStatus = readRegister32(regAddressStatus);
+    log->trace("{} List Status: {:b}", bankN, ListStatus);
+    uint32_t n_words = (ListStatus & 0xFFFFFF00) >> 8;
+    log->debug("{:d} words read from {}", n_words, bankN);
+    addr = getBaseAddr() + regAddressList;
+    //int n_bytes = 0; 
+    // int ret = CAENVME_FIFOBLTReadCycle(handle, addr, buff, BufferSize, cvA32_U_DATA, cvD32, &n_bytes);
+    int ret;
+//
+//    if (ret != cvSuccess && ret != cvBusError) {
+//        log->error("FIFO Readout Error");
+//        return ret;
+//    }
+    //int n_words = n_bytes/4;
+    // log->trace("{:d} words read", n_words);
 
     Event currentEvent;
+    uint32_t prev_event = -1;
+    uint32_t this_event = -1;
+    uint32_t word;
     for (int i = 0; i < (int)n_words; i++) {
-        uint32_t word = buff[i];
+         // = buff[i];
+        ret = CAENVME_ReadCycle(handle, addr, &word, cvA32_U_DATA, cvD32);
+
+        if (ret != cvSuccess && ret != cvBusError) {
+            log->error("FIFO Readout Error");
+            return ret;
+        }
 
 
-        // // Check for Global Header (start of event)
-        // if (IS_GLOBAL_HEADER(word)) {  
-        //     if (!currentEvent.data.empty()) {
-        //         dataBank.addEvent(currentEvent);
-        //         currentEvent.data.clear();
-        //     }
-        //     currentEvent.eventID = DATA_EVENT_ID(word);  // Extract event ID
-        //     currentEvent.data.push_back(word);
-        // }
-        // else if (IS_TDC_HEADER(word)) {
-        //     currentEvent.timestamp = DATA_BUNCH_ID(word);
-        //     currentEvent.data.push_back(word);
-        // }
-        // // Check for Global Trailer (end of event)
-        // else if (IS_GLOBAL_TRAILER(word)) {
-        //     currentEvent.data.push_back(word);
-        //     dataBank.addEvent(currentEvent);
-        //     currentEvent.data.clear();
-        // }
-        // // Regular data word
-        // else {
-        //     currentEvent.data.push_back(word);
-        // }
+        log->trace("{} List Word: 0x{:x}", bankN, word);
+        // log->debug("Gate: {:d}, Event: {:d}", (word & 0x80000000) >> 31, word & 0x7FFFFFFF);
+        this_event = GATE_EVENT(word);
+        if (currentEvent.eventID == prev_event) continue;
+        prev_event = this_event;
+        currentEvent.data.push_back(word);
+        dataBank.addEvent(currentEvent);
+        currentEvent.data.clear();
+
     }
 
     free(buff);
@@ -196,3 +208,9 @@ int v2495::readFIFO(DataBank& dataBank, uint32_t regAddress) {
 
 }
 
+
+
+/* int v2495::startCPack(uint32_t regAddress) {
+    vmeError |= setRegister(0x1, SCI_REG_Mixing_CONFIG);
+    return vmeError;
+}*/

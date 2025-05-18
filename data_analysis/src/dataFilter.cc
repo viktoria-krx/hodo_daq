@@ -6,6 +6,7 @@
 
 #include <ROOT/RDataFrame.hxx>
 #include <zmq.hpp>
+#include <unistd.h>
 
 
 template <size_t N>
@@ -65,6 +66,23 @@ ROOT::VecOps::RVec<Double_t> filterVector(
     return out;
 }
 
+ROOT::VecOps::RVec<Double_t> barCoincidenceToT(
+    const ROOT::RVec<Double_t>& ds, 
+    const ROOT::RVec<Double_t>& us) {
+    ROOT::VecOps::RVec<Double_t> coinc(ds.size());
+    // bool coincidence = false;
+    for (size_t i = 0; i < ds.size(); ++i) {
+        if (ds[i] > 0 && us[i] > 0) {
+            coinc[i] = ds[i];
+        } else {
+            coinc[i] = std::nan("");
+        }
+    }
+    return coinc;
+}
+
+
+
 template <size_t N>
 void mergeIfUnset(std::array<Double_t, N>& out, const std::array<Double_t, N>& in) {
     for (size_t i = 0; i < N; ++i) {
@@ -103,16 +121,61 @@ void mergeIfUnset(Bool_t& out, const Bool_t& in) {
 
 void DataFilter::fileSorter(const char* inputFile, int last_evt, const char* outputFile) {
     auto log = Logger::getLogger();
-    TFile* file = TFile::Open(inputFile);
-    // log->debug("TFile opened");
+
+    TFile* file;
+
+
+    file = TFile::Open(inputFile);
+    
+    if (!file) {
+        log->error("Failed to open or read ROOT file: {}", inputFile);
+    }
+
+    log->debug("TFile opened");
     TTree* tree = (TTree*)file->Get("RawEventTree");
-    // log->debug("TFile->Get RawEventTree");
+    log->debug("TFile->Get RawEventTree");
     
     // New output file
-    TFile* output;
+    // TFile* output;
     TTree* newTree = nullptr;
+    bool createNew;
+    TFile* output;
 
-    bool createNew = (last_evt == 0  || !(TTree*)output->Get("RawEventTree"));
+    if (access(outputFile, F_OK) != -1) {
+        // File doesn't exist — create a new one
+        createNew = true;
+        log->info("Data file does not exist yet");
+    } else {
+        // File exists — try to open it
+        output = TFile::Open(outputFile, "UPDATE");
+        if (!output || output->IsZombie()) {
+            log->error("Existing file is Zombie or unreadable: {}", outputFile);
+            createNew = true;
+            if (output) delete output;
+        } else {
+            TTree* existingTree = (TTree*)output->Get("RawEventTree");
+            createNew = (existingTree == nullptr);
+        }
+    }
+
+
+    // if (TFile::Open(outputFile, "UPDATE")->IsZombie()){
+    //     log->error("File {} is Zombie", outputFile);
+    //     output = TFile::Open(outputFile, "RECREATE");
+    //     createNew = true;
+    // } else {
+    //     output = TFile::Open(outputFile, "UPDATE");
+    //     TTree* existingTree = (TTree*)output->Get("RawEventTree");
+    //     createNew = (existingTree == nullptr);
+    // }
+    
+    if (createNew) {
+        log->info("No existing data file or broken data file, will recreate and start from 0");
+        last_evt = -1;
+    }
+    
+
+    // bool createNew = (last_evt == 0 || !(TTree*)output->Get("RawEventTree"));
 
     TDCEvent eventOut;
     TDCEvent eventIn;
@@ -121,7 +184,8 @@ void DataFilter::fileSorter(const char* inputFile, int last_evt, const char* out
     tree->SetBranchAddress("eventID",        &eventIn.eventID);
     tree->SetBranchAddress("timestamp",      &eventIn.timestamp);
     tree->SetBranchAddress("cuspRunNumber",  &eventIn.cuspRunNumber);
-    tree->SetBranchAddress("gate",           &eventIn.gate);
+    tree->SetBranchAddress("mixGate",        &eventIn.mixGate);
+    tree->SetBranchAddress("dumpGate",       &eventIn.dumpGate);
     tree->SetBranchAddress("tdcTimeTag",     &eventIn.tdcTimeTag);
     tree->SetBranchAddress("trgLE",          &eventIn.trgLE);
     tree->SetBranchAddress("trgTE",          &eventIn.trgTE);
@@ -163,7 +227,8 @@ void DataFilter::fileSorter(const char* inputFile, int last_evt, const char* out
         newTree->Branch("eventID",        &eventOut.eventID,            "eventID/i");
         newTree->Branch("timestamp",      &eventOut.timestamp,          "timestamp/D");
         newTree->Branch("cuspRunNumber",  &eventOut.cuspRunNumber,      "cuspRunNumber/i"  );
-        newTree->Branch("gate",           &eventOut.gate,               "gate/O");
+        newTree->Branch("mixGate",        &eventOut.mixGate,            "mixGate/O");
+        newTree->Branch("dumpGate",       &eventOut.dumpGate,           "dumpGate/O");
         newTree->Branch("tdcTimeTag",     &eventOut.tdcTimeTag,         "tdcTimeTag/D");
         newTree->Branch("trgLE",          eventOut.trgLE.data(),        "trgLE[4]/D");
         newTree->Branch("trgTE",          eventOut.trgTE.data(),        "trgTE[4]/D");
@@ -196,6 +261,7 @@ void DataFilter::fileSorter(const char* inputFile, int last_evt, const char* out
         // newTree->Branch("tdcChannel",     &eventOut.tdcChannel);
         // newTree->Branch("tdcTime",        &eventOut.tdcTime);
 
+
     } else {
         output = new TFile(outputFile, "UPDATE");
         log->debug("TFile updating");
@@ -217,7 +283,7 @@ void DataFilter::fileSorter(const char* inputFile, int last_evt, const char* out
     for (Int_t evt = last_evt +1 ; evt < nr_evts; evt++){
         eventOut.reset();
 
-        for (Int_t tdc = 0; tdc < 4; tdc++){
+        for (Int_t tdc = 0; tdc < 5; tdc++){
 
             Int_t j = (Int_t) tree->GetEntryNumberWithIndex(evt, tdc);
             if (j < 0) continue;
@@ -230,7 +296,8 @@ void DataFilter::fileSorter(const char* inputFile, int last_evt, const char* out
             mergeIfUnset(eventOut.eventID,       eventIn.eventID);
             mergeIfUnset(eventOut.timestamp,     eventIn.timestamp);
             mergeIfUnset(eventOut.cuspRunNumber, eventIn.cuspRunNumber);
-            mergeIfUnset(eventOut.gate,          eventIn.gate);
+            //mergeIfUnset(eventOut.mixGate,       eventIn.mixGate);
+            //mergeIfUnset(eventOut.dumpGate,      eventIn.dumpGate);
             mergeIfUnset(eventOut.tdcTimeTag,    eventIn.tdcTimeTag);
             mergeIfUnset(eventOut.tdcID,         eventIn.tdcID);
 
@@ -269,6 +336,11 @@ void DataFilter::fileSorter(const char* inputFile, int last_evt, const char* out
                 case 3:
                     mergeIfUnset(eventOut.bgoLE,     eventIn.bgoLE);
                     mergeIfUnset(eventOut.bgoTE,     eventIn.bgoTE);
+                    break;
+                
+                case 4:
+                    mergeIfUnset(eventOut.mixGate,   eventIn.mixGate);
+                    mergeIfUnset(eventOut.dumpGate,  eventIn.dumpGate);
                     break;
             }
 
@@ -342,20 +414,24 @@ void DataFilter::filterAndSave(const char* inputFile, int last_evt) {
             .Define("tileIToT", computeToT<120>, {"tileILE", "tileITE"})
             .Define("tileOToT", computeToT<120>, {"tileOLE", "tileOTE"})
             .Define("bgoCts", countNonZeroToT<64>, {"bgoToT"})
-            .Filter(barCoincidence<32>, {"hodoODsToT", "hodoOUsToT"})
-            .Filter(barCoincidence<32>, {"hodoIDsToT", "hodoIUsToT"})
-            .Define("hodoODsCts", countNonZeroToT<32>, {"hodoODsToT"})
-            .Define("hodoOUsCts", countNonZeroToT<32>, {"hodoOUsToT"})
-            .Define("hodoIDsCts", countNonZeroToT<32>, {"hodoIDsToT"})
-            .Define("hodoIUsCts", countNonZeroToT<32>, {"hodoIUsToT"})
+            .Define("barODsToT", barCoincidenceToT, {"hodoODsToT", "hodoOUsToT"})
+            .Define("barOUsToT", barCoincidenceToT, {"hodoOUsToT", "hodoODsToT"})
+            .Define("barIDsToT", barCoincidenceToT, {"hodoIDsToT", "hodoIUsToT"})
+            .Define("barIUsToT", barCoincidenceToT, {"hodoIUsToT", "hodoIDsToT"})
+            .Filter(barCoincidence<32>, {"barODsToT", "barOUsToT"})
+            .Filter(barCoincidence<32>, {"barIDsToT", "barIUsToT"})
+            .Define("barODsCts", countNonZeroToT<32>, {"barODsToT"})
+            .Define("barOUsCts", countNonZeroToT<32>, {"barOUsToT"})
+            .Define("barIDsCts", countNonZeroToT<32>, {"barIDsToT"})
+            .Define("barIUsCts", countNonZeroToT<32>, {"barIUsToT"})
             //.Filter("bgoCts > 1", "BGO Cut")      // uncomment if BGO is used
             .Define("bgo_Channels", getActiveIndices<64>, {"bgoToT"})
-            .Define("hodoODs_Channels", getActiveIndices<32>, {"hodoODsToT"})
-            .Define("hodoOUs_Channels", getActiveIndices<32>, {"hodoOUsToT"})
-            .Define("hodoIDs_Channels", getActiveIndices<32>, {"hodoIDsToT"})
-            .Define("hodoIUs_Channels", getActiveIndices<32>, {"hodoIUsToT"})
-            .Define("tileI_Channels", getActiveIndices<120>, {"tileIToT"})
+            .Define("barO_Channels", getActiveIndices<32>, {"barODsToT"})
+//            .Define("hodoOUs_Channels", getActiveIndices<32>, {"barOUsToT"})
+            .Define("barI_Channels", getActiveIndices<32>, {"barIDsToT"})
+//            .Define("hodoIUs_Channels", getActiveIndices<32>, {"barIUsToT"})
             .Define("tileO_Channels", getActiveIndices<120>, {"tileOToT"})
+            .Define("tileI_Channels", getActiveIndices<120>, {"tileIToT"})
             ;
 
     auto nEntriesAfterCuts = filtered_df.Count();
@@ -363,7 +439,8 @@ void DataFilter::filterAndSave(const char* inputFile, int last_evt) {
     log->info("{} events after cuts", eventsCut);
 
     ROOT::RDF::RSnapshotOptions opts;
-    opts.fMode = "update";
+    opts.fMode = "update"; // was "update"
+    opts.fOverwriteIfExists = true;
     filtered_df.Snapshot("EventTree", inputFile, "", opts);
 
 
@@ -395,12 +472,17 @@ void DataFilter::filterAndSend(const char* inputFile, int last_evt, zmq::socket_
                         .Define("tileIToT", computeToT<120>, {"tileILE", "tileITE"})
                         .Define("tileOToT", computeToT<120>, {"tileOLE", "tileOTE"})
                         .Define("bgoCts", countNonZeroToT<64>, {"bgoToT"})
-                        .Filter(barCoincidence<32>, {"hodoODsToT", "hodoOUsToT"})
-                        .Filter(barCoincidence<32>, {"hodoIDsToT", "hodoIUsToT"})
-                        .Define("hodoODsCts", countNonZeroToT<32>, {"hodoODsToT"})
-                        .Define("hodoOUsCts", countNonZeroToT<32>, {"hodoOUsToT"})
-                        .Define("hodoIDsCts", countNonZeroToT<32>, {"hodoIDsToT"})
-                        .Define("hodoIUsCts", countNonZeroToT<32>, {"hodoIUsToT"})
+
+                        .Define("barODsToT", barCoincidenceToT, {"hodoODsToT", "hodoOUsToT"})
+                        .Define("barOUsToT", barCoincidenceToT, {"hodoOUsToT", "hodoODsToT"})
+                        .Define("barIDsToT", barCoincidenceToT, {"hodoIDsToT", "hodoIUsToT"})
+                        .Define("barIUsToT", barCoincidenceToT, {"hodoIUsToT", "hodoIDsToT"})
+                        .Filter(barCoincidence<32>, {"barODsToT", "barOUsToT"})
+                        .Filter(barCoincidence<32>, {"barIDsToT", "barIUsToT"})
+                        .Define("barODsCts", countNonZeroToT<32>, {"barODsToT"})
+                        .Define("barOUsCts", countNonZeroToT<32>, {"barOUsToT"})
+                        .Define("barIDsCts", countNonZeroToT<32>, {"barIDsToT"})
+                        .Define("barIUsCts", countNonZeroToT<32>, {"barIUsToT"})
                         //.Filter("bgoCts > 1", "BGO Cut")      // uncomment if BGO is used
                         .Define("bgo_Channels", getActiveIndices<64>, {"bgoToT"})
 
@@ -412,9 +494,9 @@ void DataFilter::filterAndSend(const char* inputFile, int last_evt, zmq::socket_
 
 
     // Process filtered results
-    filtered_df.Foreach([&socket](uint32_t eventID, double tdcTimeTag, const std::vector<int>& bgo_Channels) {
+    filtered_df.Foreach([&socket](uint32_t eventID, double tdcTimeTag, bool mixGate, const std::vector<int>& bgo_Channels) {
         std::stringstream ss;
-        ss << eventID << " " << tdcTimeTag;
+        ss << eventID << " " << tdcTimeTag << " " << mixGate;
 
         for (int ch : bgo_Channels) {
             ss << " " << ch;
@@ -423,7 +505,89 @@ void DataFilter::filterAndSend(const char* inputFile, int last_evt, zmq::socket_
         zmq::message_t message(ss.str().c_str(), ss.str().size());
         socket.send(message, zmq::send_flags::none);
 
-    }, {"eventID", "tdcTimeTag", "bgo_Channels"});
+    }, {"eventID", "tdcTimeTag", "mixGate", "bgo_Channels"});
 
     log->debug("Filtered data sent to GUI.");
+}
+
+
+
+void DataFilter::filterAndSaveAndSend(const char* inputFile, int last_evt, zmq::socket_t& socket) {
+
+    auto log = Logger::getLogger();
+
+    // Load ROOT file
+    ROOT::RDataFrame df("RawEventTree", inputFile);
+
+    auto nEntriesBeforeCuts = df.Count();
+    double eventsUncut = static_cast<double>(*nEntriesBeforeCuts);
+    log->info("{} events before cuts", eventsUncut);
+
+    auto filtered_df = df.Filter("eventID > " + std::to_string(last_evt), "New Events")
+            //.Filter("bgoLE < " + std::to_string(LE_CUT), "Time Cut")
+            .Define("bgoLE_tCut", 
+                [this](const ROOT::RVec<Double_t>& le) {
+                    return filterVector(le, [this](Double_t x) { return x < LE_CUT && x > 0; });
+                }, {"bgoLE"})
+            .Define("hodoODsToT", computeToT<32>, {"hodoODsLE", "hodoODsTE"})
+            .Define("hodoOUsToT", computeToT<32>, {"hodoOUsLE", "hodoOUsTE"})
+            .Define("hodoIDsToT", computeToT<32>, {"hodoIDsLE", "hodoIDsTE"})
+            .Define("hodoIUsToT", computeToT<32>, {"hodoIUsLE", "hodoIUsTE"})
+            .Define("bgoToT", computeToT<64>, {"bgoLE_tCut", "bgoTE"})
+            .Define("tileIToT", computeToT<120>, {"tileILE", "tileITE"})
+            .Define("tileOToT", computeToT<120>, {"tileOLE", "tileOTE"})
+            .Define("bgoCts", countNonZeroToT<64>, {"bgoToT"})
+            .Define("barODsToT", barCoincidenceToT, {"hodoODsToT", "hodoOUsToT"})
+            .Define("barOUsToT", barCoincidenceToT, {"hodoOUsToT", "hodoODsToT"})
+            .Define("barIDsToT", barCoincidenceToT, {"hodoIDsToT", "hodoIUsToT"})
+            .Define("barIUsToT", barCoincidenceToT, {"hodoIUsToT", "hodoIDsToT"})
+            .Filter(barCoincidence<32>, {"barODsToT", "barOUsToT"})
+            .Filter(barCoincidence<32>, {"barIDsToT", "barIUsToT"})
+            .Define("barODsCts", countNonZeroToT<32>, {"barODsToT"})
+            .Define("barOUsCts", countNonZeroToT<32>, {"barOUsToT"})
+            .Define("barIDsCts", countNonZeroToT<32>, {"barIDsToT"})
+            .Define("barIUsCts", countNonZeroToT<32>, {"barIUsToT"})
+            //.Filter("bgoCts > 1", "BGO Cut")      // uncomment if BGO is used
+            .Define("bgo_Channels", getActiveIndices<64>, {"bgoToT"})
+            .Define("barO_Channels", getActiveIndices<32>, {"barODsToT"})
+            //.Define("hodoOUs_Channels", getActiveIndices<32>, {"barOUsToT"})
+            .Define("barI_Channels", getActiveIndices<32>, {"barIDsToT"})
+            //.Define("hodoIUs_Channels", getActiveIndices<32>, {"barIUsToT"})
+            .Define("tileO_Channels", getActiveIndices<120>, {"tileOToT"})
+            .Define("tileI_Channels", getActiveIndices<120>, {"tileIToT"})
+            ;
+
+    auto nEntriesAfterCuts = filtered_df.Count();
+    double eventsCut = static_cast<double>(*nEntriesAfterCuts);
+    double eventsCutGate = static_cast<double>(*filtered_df.Filter("mixGate == true").Count());
+    log->info("{} events after cuts", eventsCut);
+
+    ROOT::RDF::RSnapshotOptions opts;
+    opts.fMode = "update"; // was "update"
+    opts.fOverwriteIfExists = true;
+    filtered_df.Snapshot("EventTree", inputFile, "", opts);
+    
+    // Process filtered results
+    filtered_df.Foreach([&socket](uint32_t eventID, double tdcTimeTag, bool mixGate, const std::vector<int>& bgo_Channels) {
+        std::stringstream ss;
+        ss << eventID << " " << tdcTimeTag << " " << (int)mixGate;
+
+        for (int ch : bgo_Channels) {
+            ss << " " << ch;
+        }
+
+        zmq::message_t message(ss.str().c_str(), ss.str().size());
+        socket.send(message, zmq::send_flags::none);
+
+    }, {"eventID", "tdcTimeTag", "mixGate", "bgo_Channels"});
+
+    std::stringstream endss; 
+    endss << "END " << eventsCut << " " << eventsCutGate;
+    zmq::message_t message(endss.str().c_str(), endss.str().size() );
+    socket.send(message, zmq::send_flags::none);
+
+    log->debug(endss.str());
+
+    log->debug("Filtered data sent to GUI.");
+
 }

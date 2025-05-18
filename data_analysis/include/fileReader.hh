@@ -31,6 +31,10 @@
 #define EXTENDED_TT(r)         (((r)      & 0x7FFFFFF))
 #define ETTT_GEO(r)            (((r)      & 0x1F))
 
+#define GATE_EVENT(r)           ((r) & 0x3FFFFFFF)
+#define GATE_BOOL(r)            (((r)>>31) & 0x1)
+#define DUMP_BOOL(r)            (((r)>>30) & 0x1)
+
 // Event Structure
 struct Event {
     uint32_t timestamp;

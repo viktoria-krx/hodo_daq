@@ -171,6 +171,36 @@ void startReadoutThread(v1190& tdc, std::string bankName) {
 }
 
 /**
+ * @brief Starts a readout thread for a given FPGA and register.
+ *
+ * This function launches a new thread that continuously reads data from
+ * the specified FPGA module and stores the data in a
+ * thread-safe queue. The thread runs until `stopReadout` is set to true.
+ * Each `DataBank` is named with the provided bankName.
+ *
+ * @param tdc Reference to the TDC from which to read data.
+ * @param bankName The name to be assigned to each `DataBank` created.
+ */
+void startReadoutThread(v2495& fpga, std::string bankName, uint32_t regAddressList, uint32_t regAddressStatus) {
+    readoutThreads.emplace_back([&fpga, bankName, regAddressList, regAddressStatus] () {
+        // while(!stopReadout) {
+            DataBank dataBank(bankName.c_str());
+            unsigned int wordsRead = fpga.readList(dataBank, regAddressList, regAddressStatus);
+
+            if (wordsRead > 0) {
+                std::lock_guard<std::mutex> lock(bankQueueMutex);
+                bankQueue.push(std::move(dataBank));
+                dataAvailable.notify_one();
+            }
+//            int tdcID = bankName.back() - '0';
+//            tdcReading[tdcID] = false;
+            //std::this_thread::sleep_for(std::chrono::milliseconds(10));
+
+        //}
+    });
+}
+
+/**
  * @brief Write a block of data to a binary file.
  *
  * This function appends the given data block to a binary file associated
@@ -256,15 +286,22 @@ void fileWriterThread() {
             eventCUSPrun.data.push_back(cuspValue);
             eventCUSPrun.timestamp = now_s;
             CUSP.addEvent(eventCUSPrun);
+            eventCUSPrun.data.clear();
         }
         block.addDataBank(CUSP);
+
+/*         DataBank GATE("GATE");
+        fpgas[0]->readList(GATE, SCI_REG_mixGate_FIFOADDRESS, SCI_REG_mixGate_STATUS); 
+        block.addDataBank(GATE);
+
+        DataBank DUMP("DUMP");
+        fpgas[0]->readList(DUMP, SCI_REG_dumpGate_FIFOADDRESS, SCI_REG_dumpGate_STATUS);
+        block.addDataBank(DUMP); */
 
         std::unique_lock<std::mutex> lock(bankQueueMutex);
         dataAvailable.wait(lock, [] {return !bankQueue.empty() || stopReadout; });
 
         if (bankQueue.empty() && stopReadout) break;
-
-        
 
         while (!bankQueue.empty()) {
             DataBank dataBank = std::move(bankQueue.front());
@@ -274,11 +311,6 @@ void fileWriterThread() {
         }
 
         lock.unlock();
-
-      // DataBank GATE("GATE");
-      // fpgas[0]->readFIFO(GATE, 0x0000);   // This function will only be properly written once I have a working Gate Register on the V2495
-      // block.addDataBank(GATE);
-
 
 
         std::vector<uint32_t> binaryData = block.serialize();
@@ -329,6 +361,8 @@ void polling() {
                         log->debug("Readout thread started {:d}", i);
                     }
                 }
+                startReadoutThread(*fpgas[0], "GATE", SCI_REG_Gate_FIFOADDRESS, SCI_REG_Gate_STATUS);
+
                 isfull = false;
                 std::this_thread::sleep_for(std::chrono::milliseconds(10));  // Small delay to avoid overloading CPU
                 for (auto& thread : readoutThreads) {
@@ -396,11 +430,17 @@ bool start_run() {
 
     blockID = 0;
 
-    // for (auto fpga : fpgas) {
-    //   if (!fpga->start()) {
-
-    //   }
-    // }
+    for (auto fpga : fpgas) {
+        log->debug("Resetting Event Counter on FPGA");
+        if (fpga->resetCounter() != 0) {
+            log->error("Failed to reset counter on FPGA");
+        }
+        log->debug("Starting Lists on FPGA");
+        if (fpga->startGateList() !=  0) {
+            log->error("Failed to start mixGate List on FPGA!");
+            return false;
+        }
+    }
 
     try {
         stopReadout = false;
@@ -472,6 +512,15 @@ void stop_run() {
             }
         }
 
+        DataBank lastGATE("GATE");
+        unsigned int wordsRead = fpgas[0]->readList(lastGATE, SCI_REG_Gate_FIFOADDRESS, SCI_REG_Gate_STATUS);
+
+        if (wordsRead > 0) {
+            std::lock_guard<std::mutex> lock(bankQueueMutex);
+            bankQueue.push(std::move(lastGATE));
+            dataAvailable.notify_one();
+        }
+
         if (!bankQueue.empty()) {
 
             log->debug("Flushing remaining data...");
@@ -492,6 +541,15 @@ void stop_run() {
             }
             finalBlock.addDataBank(CUSP);
 
+/*            DataBank GATE("GATE");
+            fpgas[0]->readMixList(GATE, SCI_REG_mixGate_FIFOADDRESS); 
+            finalBlock.addDataBank(GATE);
+    
+            DataBank DUMP("DUMP");
+            fpgas[0]->readDumpList(DUMP, SCI_REG_dumpGate_FIFOADDRESS);
+            finalBlock.addDataBank(DUMP);
+*/
+
             std::unique_lock<std::mutex> lock(bankQueueMutex);
             while (!bankQueue.empty()) {
                 DataBank dataBank = std::move(bankQueue.front());
@@ -503,10 +561,6 @@ void stop_run() {
             }
             lock.unlock();
 
-            // Also add the last GATE and CUSP banks
-            //DataBank GATE("GATE");
-            //fpgas[0]->readFIFO(GATE, 0x0000);  
-            //finalBlock.addDataBank(GATE);
 
 
             // Serialize and push to file writer queue

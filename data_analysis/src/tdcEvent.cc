@@ -38,7 +38,8 @@ void TDCEvent::reset() {
     eventID = UINT32_UNSET;
     timestamp = std::nan("");
     cuspRunNumber = UINT32_UNSET;
-    gate = BOOL_UNSET;
+    mixGate = BOOL_UNSET;
+    dumpGate = BOOL_UNSET;
     tdcTimeTag = std::nan("");
     tdcID = UINT32_UNSET;
 }
