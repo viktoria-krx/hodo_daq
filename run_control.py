@@ -483,7 +483,7 @@ class DAQControllerApp:
         self.run_progress_bar.configure(text="Running...", bootstyle="info")
         
         self.run_progress_bar["value"] = elapsed_time
-        self.run_progress_bar.configure(text = f"Running...   {elapsed_time} sec")
+        self.run_progress_bar.configure(text = f"Running...   {self.run_progress_bar.value} sec")
 
         if elapsed_time < self.run_duration_var.get() and self.run_running:
             self.root.after(1000, lambda: self.update_floodgauge(elapsed_time + 1))  # Call itself after 1 sec

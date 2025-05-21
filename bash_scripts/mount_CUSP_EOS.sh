@@ -10,4 +10,4 @@ sudo mount -t cifs //pcad3-cuspdaq/TdiagTraces /home/hododaq/Traces -o rw,creden
 sudo mount -t cifs //SMI-SIPMCONTROL/FPGA_logics /home/hododaq/FPGAlogic -o ro,credentials=/home/hododaq/.smbcredentials3
 
 
-sudo eosxd -d -ofsname=experiment
+# sudo eosxd -d -ofsname=experiment
