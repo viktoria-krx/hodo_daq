@@ -38,6 +38,7 @@ def main():
     main.app = QtWidgets.QApplication(sys.argv)
     w = Window()
     w.setWindowTitle('Arduino Amplifier Control')
+    w.setWindowIcon(QtGui.QIcon('icons/amp_icon.png'))
     w.show()
     sys.exit(main.app.exec_())
 

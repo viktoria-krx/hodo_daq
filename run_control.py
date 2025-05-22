@@ -119,7 +119,7 @@ class DAQControllerApp:
         # print(f"{int(screen_width*0.55)}x{int(screen_height*0.9)}")
 
         # Define fonts:
-        self.font_size = max(12, int(screen_height / 120))  # Scale with screen height, min size 12
+        self.font_size = max(12, int(screen_height / 100))  # Scale with screen height, min size 12
         self.button_font = ("clean", int(self.font_size), "bold")
         self.label_font = ("clean", int(self.font_size))
         self.text_font = ("clean", int(self.font_size))
@@ -163,44 +163,48 @@ class DAQControllerApp:
 
         # Run Number Display
         self.run_number_label = ttk.Label(root, text=f"Run Number: {self.run_number}", font=self.label_font, bootstyle="info")
-        self.run_number_label.grid(row=1, column=1, sticky="", padx=20, pady=10)
+        self.run_number_label.grid(row=2, column=0, sticky="ns", padx=20, pady=10)
 
         # CUSP Run Number Display
         self.cusp_number_label = ttk.Label(root, text=f"CUSP Run: {self.cusp_number}", font=self.label_font, bootstyle="info")
-        self.cusp_number_label.grid(row=2, column=1, sticky="n", padx=20, pady=10)
+        self.cusp_number_label.grid(row=2, column=1, sticky="ns", padx=20, pady=10)
 
         # Auto run checkbox
         self.auto_run_var = ttk.BooleanVar()
         self.auto_run_checkbox = ttk.Checkbutton(root, text=" ", variable=self.auto_run_var, 
                                                  command=self.toggle_auto_run, bootstyle="success-round-toggle", 
                                                  state="disabled")
-        self.auto_run_checkbox.grid(row=2, column=0, sticky="ne", padx=30, pady=10)
-        self.auto_run_label = ttk.Label(root, text="Auto Run", font=self.label_font, bootstyle="secondary")
-        self.auto_run_label.grid(row=2, column=0, sticky="nw", padx=50, pady=10)
+        self.auto_run_checkbox.grid(row=2, column=2, sticky="nsw", padx=25, pady=10)
+        self.auto_run_label = ttk.Label(root, text="Auto Run", font=self.label_font, bootstyle="light")
+        self.auto_run_label.grid(row=2, column=2, sticky="nsw", padx=60, pady=10)
 
         # Boolean to track if a run is active
         self.run_active = False
 
         # Run duration input
         self.run_duration_var = ttk.IntVar(value=80)  # Default: 80
-        ttk.Label(root, text="Run Duration (s):", font=self.label_font).grid(row=2, column=2, sticky="ne", padx=20, pady=10)
-        self.run_duration_entry = ttk.Entry(root, textvariable=self.run_duration_var, font=self.label_font, width=8)
-        self.run_duration_entry.grid(row=2, column=3, sticky="nw", padx=20, pady=10)
+        ttk.Label(root, text="Run Duration (s):", font=self.label_font).grid(row=2, column=3, sticky="nse", padx=20, pady=10)
+        self.run_duration_entry = ttk.Entry(root, textvariable=self.run_duration_var, font=self.label_font, width=8, justify="center", cursor="clock")
+        self.run_duration_entry.grid(row=2, column=4, sticky="nsw", padx=20, pady=10)
 
         # Run progress bar
-        self.run_progress_bar = ttk.Floodgauge(root, bootstyle="dark", maximum=self.run_duration_var.get(), value=0, 
-                                               text="Not Running",
-                                               mode="determinate") #, 
+        # self.run_progress_bar = ttk.Floodgauge(root, bootstyle="dark", maximum=self.run_duration_var.get(), value=0, 
+        #                                        text="Not Running",
+        #                                        mode="determinate") #, 
                                             #   font=self.text_font) 
-        self.run_progress_bar.grid(row=2, column=4, columnspan=2, sticky="ew", padx=20, pady=0)
+        self.run_progress_bar = ttk.Progressbar(root, maximum=self.run_duration_var.get(), value=0, mode="determinate", bootstyle="success-striped")
+        self.run_progress_bar.grid(row=3, column=4, columnspan=2, sticky="sew", padx=20, pady=10)
+        self.run_progress_bar_label = ttk.Label(root, text="Not running", font=self.label_font, bootstyle="light")
+        self.run_progress_bar_label.grid(row=3, column=4, columnspan=2, sticky="new", padx=20, pady=10)
+        self.elapsed_time = 0
 
         self.button_width = 15
         # Buttons for initialising/stopping DAQ connection
-        self.start_daq_button = ttk.Button(root, text="Start DAQ", command=self.start_daq, 
+        self.start_daq_button = ttk.Button(root, text="Start DAQ", command=self.start_daq, cursor="shuttle",
                                            width=self.button_width, bootstyle="success")
         self.start_daq_button.grid(row=1, column=0, sticky="nsew", padx=20, pady=10)
 
-        self.stop_daq_button = ttk.Button(root, text="! Stop DAQ", command=self.stop_daq, 
+        self.stop_daq_button = ttk.Button(root, text="! Stop DAQ", command=self.stop_daq, cursor="coffee_mug",
                                           width=self.button_width, bootstyle="danger", state="disabled")
         self.stop_daq_button.grid(row=1, column=5, sticky="nsew", padx=20, pady=10)
 
@@ -225,16 +229,16 @@ class DAQControllerApp:
         self.live_analysis_var = ttk.BooleanVar()
         self.live_analysis_checkbox = ttk.Checkbutton(root, text=" ", variable=self.live_analysis_var, 
                                                       command=self.toggle_live_analysis, bootstyle="success-round-toggle", state="disabled")
-        self.live_analysis_checkbox.grid(row=4, column=1, sticky="ne", padx=0, pady=10)
-        self.live_analysis_label = ttk.Label(root, text="Live Analysis", font=self.label_font, bootstyle="secondary")
-        self.live_analysis_label.grid(row=4, column=1, sticky="nw", padx=40, pady=10)
+        self.live_analysis_checkbox.grid(row=4, column=1, sticky="nsw", padx=25, pady=10)
+        self.live_analysis_label = ttk.Label(root, text="Live Analysis", font=self.label_font, bootstyle="light")
+        self.live_analysis_label.grid(row=4, column=1, sticky="nse", padx=20, pady=10)
 
         self.analysis_after_var = ttk.BooleanVar()
         self.analysis_after_checkbox = ttk.Checkbutton(root, text=" ", variable=self.analysis_after_var, 
                                                       command=self.toggle_analysis_after, bootstyle="success-round-toggle", state="disabled")
-        self.analysis_after_checkbox.grid(row=4, column=0, sticky="ne", padx=0, pady=10)
-        self.analysis_after_label = ttk.Label(root, text="Analysis After", font=self.label_font, bootstyle="secondary")
-        self.analysis_after_label.grid(row=4, column=0, sticky="nw", padx=25, pady=10)
+        self.analysis_after_checkbox.grid(row=4, column=0, sticky="nsw", padx=25, pady=10)
+        self.analysis_after_label = ttk.Label(root, text="Analysis After", font=self.label_font, bootstyle="light")
+        self.analysis_after_label.grid(row=4, column=0, sticky="nse", padx=10, pady=10)
 
         self.last_run_nr = ""
         self.last_run_cusp = ""
@@ -280,7 +284,7 @@ class DAQControllerApp:
         # Embed the matplotlib plot in tkinter, in grid row 5
         self.canvas1 = FigureCanvasTkAgg(self.fig1, master=self.root) 
         self.canvas_widget1 = self.canvas1.get_tk_widget()
-        self.canvas_widget1.grid(row=6, column=0, columnspan=3, padx=1, pady=40, sticky="new") 
+        self.canvas_widget1.grid(row=6, column=0, columnspan=3, padx=1, pady=40, sticky="nsw") 
         #self.fig1.tight_layout()
         self.canvas1.draw()
 
@@ -330,7 +334,7 @@ class DAQControllerApp:
         # Embed the matplotlib plot in tkinter, in grid row 5
         self.canvas2 = FigureCanvasTkAgg(self.fig2, master=self.root) 
         self.canvas_widget2 = self.canvas2.get_tk_widget()
-        self.canvas_widget2.grid(row=6, column=3, columnspan=3, padx=1, pady=40, sticky="new") 
+        self.canvas_widget2.grid(row=6, column=3, columnspan=3, padx=1, pady=40, sticky="nse") 
         #self.fig2.tight_layout()
         self.canvas2.draw()
 
@@ -359,6 +363,7 @@ class DAQControllerApp:
         self.stop_daq_button.config(state="disabled")
         self.start_daq_button.config(state="disabled")
         self.run_running = True
+        self.elapsed_time = 0
         self.update_floodgauge()
         self.update_run_number()
         lockfile = f"./tmp/hodo_run_{self.run_number}.lock"     # A "lockfile" is used for the live analysis - it only works while this file exists.
@@ -377,7 +382,8 @@ class DAQControllerApp:
         self.stop_daq_button.config(state="normal")
         self.run_running = False
         self.run_progress_bar["value"] = 0
-        self.run_progress_bar.configure(text="Not Running", bootstyle="dark")
+        # self.run_progress_bar.config(text="Not Running", bootstyle="dark")
+        self.run_progress_bar_label.config(text="Not running", bootstyle="light")
         lockfile = f"./tmp/hodo_run_{self.run_number}.lock"     # Lockfile is deleted when the run is stopped. 
         if os.path.exists(lockfile):
             os.remove(lockfile)
@@ -404,7 +410,8 @@ class DAQControllerApp:
             self.send_command("stop")
             self.run_running = False
             self.run_progress_bar["value"] = 0
-            self.run_progress_bar.configure(text="Not Running", bootstyle="dark")
+            # self.run_progress_bar.config(text="Not Running", bootstyle="dark")
+            self.run_progress_bar_label.config(text="Not running", bootstyle="light")
 
         if self.daq_process:
             self.send_command("!")
@@ -476,20 +483,43 @@ class DAQControllerApp:
             cusp["cusp_run"] = 0
         return cusp
         
-    def update_floodgauge(self, elapsed_time=0):
-        """Updates the Floodgauge every second while data is being taken."""
-        self.run_progress_bar["value"] = 0  # Reset gauge at start
-        self.run_progress_bar["maximum"] = self.run_duration_var.get()  # Set max duration
-        self.run_progress_bar.configure(text="Running...", bootstyle="info")
+    # def update_floodgauge(self, elapsed_time=0):
+    #     """Updates the Floodgauge every second while data is being taken."""
+    #     if elapsed_time == 0:
+    #         #self.run_progress_bar["value"] = 0  # Reset gauge at start
+    #         self.run_progress_bar.configure(value = elapsed_time, text="Running...", bootstyle="info")
+    #     self.run_progress_bar["maximum"] = self.run_duration_var.get()  # Set max duration  
         
-        self.run_progress_bar["value"] = elapsed_time
-        self.run_progress_bar.configure(text = f"Running...   {self.run_progress_bar.value} sec")
+        
+    #     #self.run_progress_bar["value"] = elapsed_time
+    #     self.run_progress_bar.configure(value = elapsed_time, mask = "Running...   {} sec", text="")
 
-        if elapsed_time < self.run_duration_var.get() and self.run_running:
-            self.root.after(1000, lambda: self.update_floodgauge(elapsed_time + 1))  # Call itself after 1 sec
+    #     if elapsed_time < self.run_duration_var.get() and self.run_running:
+    #         self.root.after(1000, lambda: self.update_floodgauge(elapsed_time + 1))  # Call itself after 1 sec
+    #     if not self.run_running:
+    #         self.run_progress_bar["value"] = 0
+    #         self.run_progress_bar.configure(text="Not Running", bootstyle="dark")
+
+
+    def update_floodgauge(self):
+        """Updates the Floodgauge every second while data is being taken."""
+        if self.elapsed_time == 0:
+            self.run_progress_bar["value"] = 0  # Reset gauge at start
+            self.run_progress_bar_label.configure(text=f"Running...   {self.elapsed_time} seconds", bootstyle="light")
+            self.run_progress_bar.start(500)
+        self.run_progress_bar["maximum"] = self.run_duration_var.get()  # Set max duration  
+        self.run_progress_bar_label.configure(text=f"Running...   {self.elapsed_time} seconds", bootstyle="light")
+        
+        # self.run_progress_bar["value"] = elapsed_time
+        # self.run_progress_bar.configure(value = elapsed_time, mask = "Running...   {} sec", text="")
+        self.elapsed_time += 1
+        if self.elapsed_time < self.run_duration_var.get() and self.run_running:
+            self.root.after(1000, lambda: self.update_floodgauge())  # Call itself after 1 sec
         if not self.run_running:
+            self.run_progress_bar.stop()
             self.run_progress_bar["value"] = 0
-            self.run_progress_bar.configure(text="Not Running", bootstyle="dark")
+
+            self.run_progress_bar_label.configure(text="Not running", bootstyle="light")
 
 
     def toggle_auto_run(self):
@@ -560,7 +590,7 @@ class DAQControllerApp:
         socket = context.socket(zmq.SUB)
         socket.connect("tcp://localhost:5555")
         socket.setsockopt_string(zmq.SUBSCRIBE, "") 
-        geometry = f"80x24+1140+400"
+        geometry = f"80x26+1140+400"
         self.live_process = subprocess.Popen(["gnome-terminal", f"--geometry={geometry}", 
                                               "--title=Live Analysis Terminal", "--", "bash", "-c", 
                                               f"cd data_analysis/build; ./hodo_analysis -l {str(self.run_number)}; exec bash"]) #add ; exec bash to keep window open
@@ -598,7 +628,7 @@ class DAQControllerApp:
         socket = context.socket(zmq.SUB)
         socket.connect("tcp://localhost:5555")
         socket.setsockopt_string(zmq.SUBSCRIBE, "") 
-        geometry = f"80x24+1140+400"
+        geometry = f"80x26+1140+400"
         self.live_process = subprocess.Popen(["gnome-terminal", f"--geometry={geometry}", 
                                               "--title=Live Analysis Terminal", "--", "bash", "-c", 
                                               f"cd data_analysis/build; ./hodo_analysis -a {str(self.run_number)}"]) #add ; exec bash to keep window open

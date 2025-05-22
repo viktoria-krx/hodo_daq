@@ -113,6 +113,15 @@ std::string getTmpDataFilename(int runNumber) {
     return filename.str(); 
 }
 
+void createPlotsPython(int runNumber) {
+    std::string command = "/home/hododaq/anaconda3/bin/python ../create_plots.py " + std::to_string(runNumber);
+    int result = std::system(command.c_str());
+
+    if (result != 0) {
+        std::cerr << "Python script failed with code " << result << std::endl;
+    }
+}
+
 std::string getLockFilename(int runNumber) {
     std::map<std::string, std::string> config = loadConfig();
 
@@ -160,8 +169,9 @@ void runOfflineAnalysis(int runNumber) {
     log->info("Filtering ROOT file, saving as EventTree ...");
     filter.filterAndSave(getDataFilename(runNumber).c_str(), 0);
 
-}
+    createPlotsPython(runNumber);
 
+}
 
 void runOfflineAnalysisAndSend(int runNumber) {
     auto log = Logger::getLogger();

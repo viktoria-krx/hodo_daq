@@ -16,11 +16,11 @@ The new hodoscope DAQ consists of 2 C++ projects (one running the DAQ, one analy
 ### Run Control
 The run control is written in python. It can be started by running ./run_control.py 
 
-Before anything else, the button **Start DAQ** must be pressed. This initialises the connection to the VME crate and all the use VME modules (FPGAs, TDCs). The information on the current run number and some basic settings is saved in config/daq_config.conf
+Before anything else, the button **Start DAQ** must be pressed. This initialises the connection to the VME crate and all the used VME modules (FPGAs, TDCs). The information on the current run number and some basic settings is saved in config/daq_config.conf
 The CUSP run number is read from the folder CUSP, which has to be mounted via the commands in the bash_scripts folder.
 
 #### Auto Run
-When this option is chosen, the GUI automatically starts reading the CUSP run number. If it changes, a new run is started. This run will stop either if the CUSP run number changes again, or if the time set in Run Duration is exceeded. 
+When this option is chosen, the GUI automatically starts reading the CUSP run number and if it changes, a new run is started. This run will stop either if the CUSP run number changes again, or if the time set in Run Duration is exceeded. 
 
 #### Manual Runs
 If Auto Run is not chosen, a run can be started manually by pressing the "Start Run" button, it is stopped only when "Stop Run" is pressed but can also be paused and resumed.
@@ -34,6 +34,7 @@ In the 2D histogram of the BGO on the right currently all events are shown, I wi
 
 #### Data
 The data is saved in the data folder. 
+
 **bin_data**: The raw binary files written during the DAQ. 
 
 **raw_root**: The raw binary files are converted to a file. Since we use several TDCs, each event has several entries here.
