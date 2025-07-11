@@ -424,7 +424,7 @@ void DataFilter::filterAndSave(const char* inputFile, int last_evt) {
             .Define("barOUsCts", countNonZeroToT<32>, {"barOUsToT"})
             .Define("barIDsCts", countNonZeroToT<32>, {"barIDsToT"})
             .Define("barIUsCts", countNonZeroToT<32>, {"barIUsToT"})
-            //.Filter("bgoCts > 1", "BGO Cut")      // uncomment if BGO is used
+            .Filter("bgoCts > 1", "BGO Cut")      // uncomment if BGO is used
             .Define("bgo_Channels", getActiveIndices<64>, {"bgoToT"})
             .Define("barO_Channels", getActiveIndices<32>, {"barODsToT"})
 //            .Define("hodoOUs_Channels", getActiveIndices<32>, {"barOUsToT"})
@@ -483,7 +483,7 @@ void DataFilter::filterAndSend(const char* inputFile, int last_evt, zmq::socket_
                         .Define("barOUsCts", countNonZeroToT<32>, {"barOUsToT"})
                         .Define("barIDsCts", countNonZeroToT<32>, {"barIDsToT"})
                         .Define("barIUsCts", countNonZeroToT<32>, {"barIUsToT"})
-                        //.Filter("bgoCts > 1", "BGO Cut")      // uncomment if BGO is used
+                        .Filter("bgoCts > 1", "BGO Cut")      // uncomment if BGO is used
                         .Define("bgo_Channels", getActiveIndices<64>, {"bgoToT"})
 
                         ;
@@ -547,7 +547,7 @@ void DataFilter::filterAndSaveAndSend(const char* inputFile, int last_evt, zmq::
             .Define("barOUsCts", countNonZeroToT<32>, {"barOUsToT"})
             .Define("barIDsCts", countNonZeroToT<32>, {"barIDsToT"})
             .Define("barIUsCts", countNonZeroToT<32>, {"barIUsToT"})
-            //.Filter("bgoCts > 1", "BGO Cut")      // uncomment if BGO is used
+            .Filter("bgoCts > 1", "BGO Cut")      // uncomment if BGO is used
             .Define("bgo_Channels", getActiveIndices<64>, {"bgoToT"})
             .Define("barO_Channels", getActiveIndices<32>, {"barODsToT"})
             //.Define("hodoOUs_Channels", getActiveIndices<32>, {"barOUsToT"})
