@@ -716,13 +716,16 @@ class DAQControllerApp:
             return
         tdc_times = np.array(self.event_times)[:,0]
         tdc_event = np.arange(1, len(self.event_times) + 1) # np.array(self.event_times)[:,1]
-        tdc_gates = np.array(self.event_times)[:,2]
-        tdc_event_gated = np.arange(1, len(np.ma.array(np.array(self.event_times)[:,1], mask = not(tdc_gates)).compressed()) + 1 )
+        tdc_gates = 1 - np.array(self.event_times)[:,2]
+        tdc_event_gated = np.arange(1, len(np.ma.array(np.array(self.event_times)[:,1], mask = tdc_gates).compressed()) + 1 )
 
         self.line.set_data(tdc_times, tdc_event)
         self.line.set_label(f"Events: {np.max(tdc_event)}")
-        self.line2.set_data(np.ma.array(tdc_times, mask=not(tdc_gates)).compressed(), tdc_event_gated)
-        self.line2.set_label(f"Mixing Events: {np.max(tdc_event_gated)}")
+        self.line2.set_data(np.ma.array(tdc_times, mask=tdc_gates).compressed(), tdc_event_gated)
+        try:
+            self.line2.set_label(f"Mixing Events: {np.max(tdc_event_gated)}")
+        except ValueError:
+            self.line2.set_label(f"Mixing Events: 0")
         self.ax1.legend()
         self.ax1.relim()
         self.ax1.autoscale_view()
