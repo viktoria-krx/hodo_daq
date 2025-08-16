@@ -182,7 +182,7 @@ class DAQControllerApp:
         self.run_active = False
 
         # Run duration input
-        self.run_duration_var = ttk.IntVar(value=80)  # Default: 80
+        self.run_duration_var = ttk.IntVar(value=1200)  # Default: 1200
         ttk.Label(root, text="Run Duration (s):", font=self.label_font).grid(row=2, column=3, sticky="nse", padx=20, pady=10)
         self.run_duration_entry = ttk.Entry(root, textvariable=self.run_duration_var, font=self.label_font, width=8, justify="center", cursor="clock")
         self.run_duration_entry.grid(row=2, column=4, sticky="nsw", padx=20, pady=10)
@@ -226,6 +226,7 @@ class DAQControllerApp:
         self.resume_button.grid(row=3, column=3, columnspan = 1, sticky="nsew", padx=20, pady=10)
 
         # Live analysis checkbox
+        self.live_analysis_enabled = False
         self.live_analysis_var = ttk.BooleanVar()
         self.live_analysis_checkbox = ttk.Checkbutton(root, text=" ", variable=self.live_analysis_var, 
                                                       command=self.toggle_live_analysis, bootstyle="success-round-toggle", state="disabled")
@@ -365,13 +366,14 @@ class DAQControllerApp:
         self.run_running = True
         self.elapsed_time = 0
         self.update_floodgauge()
+        self.update_duration_text()
         self.update_run_number()
         lockfile = f"./tmp/hodo_run_{self.run_number}.lock"     # A "lockfile" is used for the live analysis - it only works while this file exists.
         open(lockfile, "w").close()
         self.clear_plot1(self.ax1, self.canvas1)
         self.clear_plot2(self.ax2, self.canvas2)
         self.cusp_number_at_start = self.cusp_number
-        self.toggle_live_analysis()
+        # self.toggle_live_analysis()
         self.toggle_analysis_after()
         
 
@@ -381,6 +383,7 @@ class DAQControllerApp:
         self.stop_button.config(state="disabled")
         self.stop_daq_button.config(state="normal")
         self.run_running = False
+        self.run_progress_bar.stop()
         self.run_progress_bar["value"] = 0
         # self.run_progress_bar.config(text="Not Running", bootstyle="dark")
         self.run_progress_bar_label.config(text="Not running", bootstyle="light")
@@ -439,7 +442,7 @@ class DAQControllerApp:
         self.auto_run_checkbox.config(state="normal")
         self.auto_run_label.config(bootstyle="success")
         self.auto_run_enabled = True
-        self.live_analysis_checkbox.config(state="normal")
+        self.live_analysis_checkbox.config(state="disabled")
         self.live_analysis_label.config(bootstyle="success")
         self.analysis_after_checkbox.config(state="normal")
         self.analysis_after_label.config(bootstyle="success")
@@ -506,21 +509,34 @@ class DAQControllerApp:
         if self.elapsed_time == 0:
             self.run_progress_bar["value"] = 0  # Reset gauge at start
             self.run_progress_bar_label.configure(text=f"Running...   {self.elapsed_time} seconds", bootstyle="light")
-            self.run_progress_bar.start(500)
+            self.run_progress_bar.start(1000)
+
+        # self.run_progress_bar["maximum"] = self.run_duration_var.get()  # Set max duration  
+        # self.run_progress_bar_label.configure(text=f"Running...   {self.elapsed_time} seconds", bootstyle="light")
+        
+        # # self.run_progress_bar["value"] = elapsed_time
+        # # self.run_progress_bar.configure(value = elapsed_time, mask = "Running...   {} sec", text="")
+        # self.elapsed_time += 1
+        # # self.root.after(1000, lambda: self.update_floodgauge())  # Call itself after 1 sec
+        # # if self.elapsed_time < self.run_duration_var.get() and self.run_running:
+        #     # self.root.after(1000, lambda: self.update_floodgauge())  # Call itself after 1 sec
+        # if not self.run_running:
+        #     self.run_progress_bar.stop()
+        #     self.run_progress_bar["value"] = 0
+
+        #     self.run_progress_bar_label.configure(text="Not running", bootstyle="light")
+
+    def update_duration_text(self):
         self.run_progress_bar["maximum"] = self.run_duration_var.get()  # Set max duration  
         self.run_progress_bar_label.configure(text=f"Running...   {self.elapsed_time} seconds", bootstyle="light")
-        
-        # self.run_progress_bar["value"] = elapsed_time
-        # self.run_progress_bar.configure(value = elapsed_time, mask = "Running...   {} sec", text="")
         self.elapsed_time += 1
-        if self.elapsed_time < self.run_duration_var.get() and self.run_running:
-            self.root.after(1000, lambda: self.update_floodgauge())  # Call itself after 1 sec
+
+        self.root.after(1000, lambda: self.update_duration_text())  # Call itself after 1 sec
         if not self.run_running:
             self.run_progress_bar.stop()
             self.run_progress_bar["value"] = 0
 
             self.run_progress_bar_label.configure(text="Not running", bootstyle="light")
-
 
     def toggle_auto_run(self):
         """Enables or disables auto-run."""
@@ -567,11 +583,13 @@ class DAQControllerApp:
     def auto_stop_run(self, duration):
         """Automatically stops the run after a set duration."""
         self.console.write(f"Run will auto-stop in {duration} seconds.", "INFO")
+        this_run = self.run_number
         time.sleep(duration)
-        if self.run_active:  
+        if self.run_active and self.run_number == this_run:  
             self.console.write("Auto-stopping the run due to time limit.", "WARNING")
             self.stop_run()
             self.run_active = False
+            
 
     def toggle_live_analysis(self):
         """Enables or disables live analysis."""
@@ -729,7 +747,10 @@ class DAQControllerApp:
         self.ax1.legend()
         self.ax1.relim()
         self.ax1.autoscale_view()
-        self.ax1.set_xlim(0, self.run_duration_var.get())
+        if np.max(tdc_times) < self.run_duration_var.get():
+            self.ax1.set_xlim(0, self.run_duration_var.get())
+        # else:
+        #     self.ax1.set_xlim(0, self.elapsed_time)
         self.ax1.grid(True)
 
         # self.fig1.tight_layout()
