@@ -104,11 +104,15 @@ void mergeIfUnset(std::array<uint32_t, N>& out, const std::array<uint32_t, N>& i
 void mergeIfUnset(uint32_t& out, const uint32_t& in) {
     if (out == UINT32_UNSET && in != UINT32_UNSET) {
         out = in;
+    } else if (out == 0 && in != 0) {
+        out = in;
     }
 }
 
 void mergeIfUnset(Double_t& out, const Double_t& in) {
     if (std::isnan(out) && !std::isnan(in)) {
+        out = in;
+    } else if (out == 0. && in != 0.) {
         out = in;
     }
 }
