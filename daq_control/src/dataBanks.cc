@@ -51,7 +51,18 @@ std::vector<uint32_t> DataBank::serialize() const {
     for (const auto& event : events) {
         // buffer.insert(buffer.end(), reinterpret_cast<const uint32_t*>(&event.timestamp),
         //               reinterpret_cast<const uint32_t*>(&event.timestamp) + sizeof(event.timestamp));
-        buffer.push_back(event.timestamp);
+
+        // adding this for 64 bit time stamps:
+        if (event.timestamp64 > 0) {
+            uint32_t ts_low  = static_cast<uint32_t>(event.timestamp64 & 0xFFFFFFFF);
+            uint32_t ts_high = static_cast<uint32_t>((event.timestamp64 >> 32) & 0xFFFFFFFF);
+            buffer.push_back(ts_high);
+            buffer.push_back(ts_low);
+        }
+        else if (event.timestamp > 0) {
+            buffer.push_back(event.timestamp);       
+        }
+        
 
         uint32_t dataSize = event.data.size();
         // buffer.insert(buffer.end(), reinterpret_cast<const uint32_t*>(&dataSize),
@@ -91,17 +102,17 @@ void Block::addDataBank(const DataBank& bank) {
     banks.push_back(bank);
 }
 
-    /**
-     * @brief Serialize the block into a binary vector.
-     * 
-     * This function returns a binary vector that contains all the data in the block.
-     * The vector is ordered as follows:
-     * - Block ID (4 bytes)
-     * - Number of DataBanks (4 bytes)
-     * - Serialized DataBanks (order is not guaranteed)
-     * 
-     * @return A binary vector containing the serialized block data.
-     */
+/**
+ * @brief Serialize the block into a binary vector.
+ * 
+ * This function returns a binary vector that contains all the data in the block.
+ * The vector is ordered as follows:
+ * - Block ID (4 bytes)
+ * - Number of DataBanks (4 bytes)
+ * - Serialized DataBanks (order is not guaranteed)
+ * 
+ * @return A binary vector containing the serialized block data.
+ */
 std::vector<uint32_t> Block::serialize() const {
     std::vector<uint32_t> buffer;
 

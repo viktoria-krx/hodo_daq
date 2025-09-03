@@ -41,6 +41,7 @@ void TDCEvent::reset() {
     mixGate = BOOL_UNSET;
     dumpGate = BOOL_UNSET;
     tdcTimeTag = std::nan("");
+    fpgaTimeTag = std::nan("");
     tdcID = UINT32_UNSET;
 }
 

@@ -38,6 +38,7 @@
 // Event Structure
 struct Event {
     uint32_t timestamp;
+    uint64_t timestamp64;
     std::vector<uint32_t> data;
 };
 
@@ -66,6 +67,7 @@ private:
     std::ifstream file;
     bool readDataBank(DataBank& bank);
     const std::string& filename = "";
+    bool flag64 = false;
     
 };
 

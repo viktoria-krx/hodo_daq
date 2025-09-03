@@ -82,18 +82,30 @@ class Data:
         # tree = file.Get("EventTree")
 
         rdf = ROOT.RDataFrame("EventTree", self.file_path)
-        dat = rdf.AsNumpy(["eventID", "tdcTimeTag", "mixGate", "bgo_Channels", "cuspRunNumber"])
-        
-        df = pd.DataFrame( {
-            "events": pd.Series(dat["eventID"], dtype=np.dtype("uint32")),
-            "times":  pd.Series(dat["tdcTimeTag"], dtype=np.dtype("float")),
-            "gates":  pd.Series(dat["mixGate"], dtype=np.dtype("bool")),
-            "channels": [np.array(v).tolist() for v in dat["bgo_Channels"]]
-        })#, columns=["events", "times", "mixGate", "bgo_Channels"], )
+        try:
+            dat = rdf.AsNumpy(["eventID", "tdcTimeTag", "mixGate", "fpgaTimeTag", "bgo_Channels", "cuspRunNumber"])
+            df = pd.DataFrame( {
+                "events": pd.Series(dat["eventID"], dtype=np.dtype("uint32")),
+                # "times":  pd.Series(dat["tdcTimeTag"], dtype=np.dtype("float")),
+                "times": pd.Series(dat["fpgaTimeTag"], dtype=np.dtype("float")),
+                "gates":  pd.Series(dat["mixGate"], dtype=np.dtype("bool")),
+                "channels": [np.array(v).tolist() for v in dat["bgo_Channels"]]
+            } ) #, columns=["events", "times", "mixGate", "bgo_Channels"], )
+        except:
+            dat = rdf.AsNumpy(["eventID", "tdcTimeTag", "mixGate", "bgo_Channels", "cuspRunNumber"])
+            df = pd.DataFrame( {
+                "events": pd.Series(dat["eventID"], dtype=np.dtype("uint32")),
+                "times":  pd.Series(dat["tdcTimeTag"], dtype=np.dtype("float")),
+                "gates":  pd.Series(dat["mixGate"], dtype=np.dtype("bool")),
+                "channels": [np.array(v).tolist() for v in dat["bgo_Channels"]]
+        } ) #, columns=["events", "times", "mixGate", "bgo_Channels"], )
         # df["channels"] = [np.array(v).tolist() for v in dat["bgo_Channels"]]
         # print(df.head(20))
         # print(df.dtypes)
+        print(df)
         df["mix_events"] =(df["gates"].cumsum() * df["gates"]).mask(~df["gates"]).ffill().fillna(0).astype(int)
+        # df["gates_inv"] = ~df["gates"]
+        # df["mix_events"] =(df["gates_inv"].cumsum() * df["gates_inv"]).mask(~df["gates_inv"]).ffill().fillna(0).astype(int)
 
         self.events = np.arange(len(df))+1
         self.times = df.times
@@ -201,6 +213,31 @@ class Plotter:
         figure.savefig(f"{filename}.png", dpi=300, bbox_inches='tight')
         figure.savefig(f"{filename}.pdf", bbox_inches='tight')
 
+    def save_tmp_plot(self, figure, filename ="tmp_plot"):
+        try:
+            self.ax1.tick_params(colors='lightgray')
+            for spine in self.ax1.spines.values():
+                spine.set_edgecolor("lightgray")
+            self.ax1.set_xlabel("TDC Time Tag (s)", color='lightgray')
+            self.ax1.set_ylabel("Events", color='lightgray')
+        except:
+            print("")
+        try:
+            self.ax2.tick_params(colors='lightgray')
+            for spine in self.ax2.spines.values():
+                spine.set_edgecolor("lightgray")
+            self.ax2.set_xlabel("x (mm)", color='lightgray')
+            self.ax2.set_ylabel("y (mm)", color='lightgray')
+            self.cbar.ax.yaxis.set_tick_params(color='lightgray')  # Tick marks
+            plt.setp(self.cbar.ax.get_yticklabels(), color='lightgray')  # Tick text
+            self.cbar.set_label("Counts", color='lightgray')  # Set color of the label
+            for spine in self.cbar.ax.spines.values():
+                spine.set_edgecolor('lightgray')
+        except:
+            print("")
+        figure.savefig(f"{filename}.png", dpi=300, bbox_inches='tight')
+
+
 
 def main():
     data = Data(run)
@@ -209,9 +246,10 @@ def main():
     plot = Plotter(data.times, data.events, data.mix_events, data.channels)
     plot.event_plot()
     plot.save_plot(plot.fig1, f"{data.config.get("daq_path")}/data/plots/{data.cusp_nr}_run_{data.run_nr:0>5}_events")
+    plot.save_tmp_plot(plot.fig1, f"{data.config.get("daq_path")}/data/plots/tmp_events")
     plot.bgo_plot(data)
     plot.save_plot(plot.fig2, f"{data.config.get("daq_path")}/data/plots/{data.cusp_nr}_run_{data.run_nr:0>5}_bgo")
-
+    plot.save_tmp_plot(plot.fig2, f"{data.config.get("daq_path")}/data/plots/tmp_bgo")
 
 
 if __name__=="__main__":

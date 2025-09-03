@@ -7,24 +7,51 @@
 #define BASE_ADDRESS                0x80FC
 #define SCRATCH_REGISTER            0x8220
 
-#define SCI_REG_event_cnt           0x1000
-#define SCI_REG_reset_cnt           0x1004
-#define SCI_REG_freq                0x1008
-#define SCI_REG_coincidences_upper  0x100C
-#define SCI_REG_coincidences_lower  0x1010
-#define SCI_REG_signals_bgo         0x1014
-#define SCI_REG_trigger_cnt         0x1018
-#define SCI_REG_gated_cnt           0x101C
-#define SCI_REG_gate_edge           0x1020
-#define SCI_REG_gate_2bit           0x1038
-#define SCI_REG_gate_state          0x103C
-#define SCI_REG_gate_word           0x1040
-#define SCI_REG_dump                0x1054
-#define SCI_REG_dump_word           0x1058
+// #define SCI_REG_event_cnt           0x1000
+// #define SCI_REG_reset_cnt           0x1004
+// #define SCI_REG_freq                0x1008
+// #define SCI_REG_coincidences_upper  0x100C
+// #define SCI_REG_coincidences_lower  0x1010
+// #define SCI_REG_signals_bgo         0x1014
+// #define SCI_REG_trigger_cnt         0x1018
+// #define SCI_REG_gated_cnt           0x101C
+// #define SCI_REG_gate_edge           0x1020
+// #define SCI_REG_gate_2bit           0x1038
+// #define SCI_REG_gate_state          0x103C
+// #define SCI_REG_gate_word           0x1040
+// #define SCI_REG_dump                0x1054
+// #define SCI_REG_dump_word           0x1058
 
-#define SCI_REG_Gate_FIFOADDRESS    0x1048
-#define SCI_REG_Gate_STATUS         0x104C
-#define SCI_REG_Gate_CONFIG         0x1050
+// #define SCI_REG_Gate_FIFOADDRESS    0x1048
+// #define SCI_REG_Gate_STATUS         0x104C
+// #define SCI_REG_Gate_CONFIG         0x1050
+
+
+// recompiled to have list of 64 bit time tag
+#define SCI_REG_event_cnt 0x1000
+#define SCI_REG_reset_cnt 0x1004
+#define SCI_REG_freq 0x1008
+#define SCI_REG_coincidences_upper 0x100C
+#define SCI_REG_coincidences_lower 0x1010
+#define SCI_REG_signals_bgo 0x1014
+#define SCI_REG_trigger_cnt 0x1018
+#define SCI_REG_gated_cnt 0x101C
+#define SCI_REG_gate_edge 0x1020
+#define SCI_REG_gate_2bit 0x1038
+#define SCI_REG_gate_state 0x103C
+#define SCI_REG_gate_word 0x1040
+#define SCI_REG_dump 0x1044
+#define SCI_REG_dump_word 0x1048
+
+#define SCI_REG_Gate_FIFOADDRESS 0x1050
+#define SCI_REG_Gate_STATUS 0x1054
+#define SCI_REG_Gate_CONFIG 0x1058
+
+#define SCI_REG_TimeTag_FIFOADDRESS 0x1060
+#define SCI_REG_TimeTag_STATUS 0x1064
+#define SCI_REG_TimeTag_CONFIG 0x1068
+
+
 
 #define GATE_EVENT(r)   ((r) & 0x3FFFFFFF)
 #define GATE_BOOL(r)    (((r)>>31) & 0x1)
@@ -55,7 +82,9 @@ public:
     int readRegister32(uint32_t regAddress);
     int setRegister(uint32_t value, uint32_t regAddress);
     int startGateList();
+    int startTimeList();
     int readList(DataBank& dataBank, uint32_t regAddressList, uint32_t regAddressStatus);
+    int readTwoLists(DataBank& dataBank, uint32_t regAddressListOne, uint32_t regAddressStatusOne, uint32_t regAddressListTwo, uint32_t regAddressStatusTwo);
     int resetCounter();
     void WriteDummyValue(unsigned short RegData, int handle, int vmeBaseAddress);
     unsigned short ReadDummyValue(int handle, int vmeBaseAddress);
@@ -73,6 +102,9 @@ private:
     char* IpAddr;
     int ConnType = 4;
     uint32_t addr;
+
+    uint32_t addrGate;
+    uint32_t addrTime;
 
     CAEN_PLU_ERROR_CODE ret = CAEN_PLU_GENERIC;
 

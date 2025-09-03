@@ -307,6 +307,9 @@ unsigned int v1190::BLTRead(DataBank& dataBank) {
         }
         else if (IS_TDC_HEADER(word)) {
             currentEvent.timestamp = DATA_BUNCH_ID(word);
+            currentEvent.timestamp64 = 0;
+            // log->debug("{} List time: 0x{:x}", bankN, currentEvent.timestamp);
+            // log->debug("{} List time: 0x{:x}", bankN, currentEvent.timestamp64);
             currentEvent.eventID = DATA_EVENT_ID(word);
             log->trace("Event {0:d} from {1}", currentEvent.eventID, bankN);
             currentEvent.data.push_back(word);

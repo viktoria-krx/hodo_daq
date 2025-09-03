@@ -12,6 +12,7 @@
 #include <TROOT.h>
 
 constexpr uint32_t UINT32_UNSET = static_cast<uint32_t>(-1);
+constexpr uint64_t UINT64_UNSET = static_cast<uint64_t>(-1);
 constexpr Bool_t BOOL_UNSET = 2;
 
 struct TDCEvent {
@@ -21,6 +22,7 @@ struct TDCEvent {
     Bool_t mixGate;
     Bool_t dumpGate;
     Double_t tdcTimeTag;
+    Double_t fpgaTimeTag;
     
     std::array<Double_t, 4> trgLE;
     std::array<Double_t, 4> trgTE;

@@ -233,7 +233,8 @@ class DAQControllerApp:
         self.live_analysis_checkbox.grid(row=4, column=1, sticky="nsw", padx=25, pady=10)
         self.live_analysis_label = ttk.Label(root, text="Live Analysis", font=self.label_font, bootstyle="light")
         self.live_analysis_label.grid(row=4, column=1, sticky="nse", padx=20, pady=10)
-
+        
+        self.analysis_after_enabled = False
         self.analysis_after_var = ttk.BooleanVar()
         self.analysis_after_checkbox = ttk.Checkbutton(root, text=" ", variable=self.analysis_after_var, 
                                                       command=self.toggle_analysis_after, bootstyle="success-round-toggle", state="disabled")
@@ -264,81 +265,110 @@ class DAQControllerApp:
         self.daq_process = None
         self.run_running = False
 
+    # def setup_plots(self):
+    #     """Creating event plot and BGO plot"""
+
+    #     # Data arrays for event plot
+    #     self.event_times = []
+    #     self.seen_event_ids = set()
+    #     self.gated_event_ids = set()
+
+    #     # Create the event plot
+    #     self.fig1, self.ax1 = plt.subplots(figsize=(500*px, 500*px))
+    #     self.fig1.patch.set_alpha(0.0)
+    #     self.line, = self.ax1.plot([], [], marker='.', linestyle='-', markersize=3, label="Events: 0")
+    #     self.line2, = self.ax1.plot([], [], marker='.', linestyle='-', markersize=3, label="Mixing Events: 0", color="C2")
+    #     self.ax1.legend()
+    #     self.ax1.set_xlabel("TDC Time Tag (s)")
+    #     self.ax1.set_ylabel("Events")
+    #     self.ax1.set_xlim(0, self.run_duration_var.get())
+
+    #     # Embed the matplotlib plot in tkinter, in grid row 5
+    #     self.canvas1 = FigureCanvasTkAgg(self.fig1, master=self.root) 
+    #     self.canvas_widget1 = self.canvas1.get_tk_widget()
+    #     self.canvas_widget1.grid(row=6, column=0, columnspan=3, padx=1, pady=40, sticky="nsw") 
+    #     #self.fig1.tight_layout()
+    #     self.canvas1.draw()
+
+    #     # Needed for BGO geometry:
+    #     self.bgo_geom = pd.read_csv("./config/bgo_geom.csv")
+    #     self.ch_w = 10
+    #     self.ch_h = 5
+
+    #     # Data for BGO plots
+    #     self.rectangles = []
+    #     self.BGO_counts = np.zeros(64)
+
+    #     # Needed for colorbar:
+    #     self.cmap = plt.cm.viridis
+    #     self.norm = Normalize(vmin=0, vmax=1)
+    #     self.zero_color = "#ececec"
+
+    #     # Create the BGO plot
+    #     self.fig2, self.ax2 = plt.subplots(figsize=(500*px,500*px))
+    #     self.fig2.patch.set_alpha(0.0)
+    #     # Drawing a circle of the size of the BGO
+    #     self.circle, = self.ax2.fill(45*np.cos(np.linspace( 0, 2*np.pi, 150)), 45*np.sin(np.linspace( 0, 2*np.pi, 150)), 
+    #                                  linestyle='--', ec="white", fc="lightgray", alpha=0.4)
+    #     # Creating 64 rectangles for the BGO channels
+    #     for x, y, c in zip(self.bgo_geom.x, self.bgo_geom.y, self.BGO_counts): 
+    #         if c == 0:
+    #             color = self.zero_color
+    #         else:
+    #             color = self.cmap(self.norm(c))
+    #         rect = Rectangle(xy=(x - self.ch_w/2, y - self.ch_h/2),
+    #                         width=self.ch_w, height=self.ch_h,
+    #                         color=color)
+    #         self.ax2.add_artist(rect)
+    #         self.rectangles.append(rect)
+
+    #     # Setting up the colorbar, also making sure it's the same size as the plot: 
+    #     self.sm = plt.cm.ScalarMappable(norm=self.norm, cmap='viridis')
+    #     divider = make_axes_locatable(self.ax2)
+    #     cax = divider.append_axes("right", size="5%", pad=0.05)  # Adjust size and padding
+    #     self.cbar = self.fig2.colorbar(self.sm, cax=cax)
+    #     self.cbar.set_label("Counts")
+
+    #     self.ax2.set_aspect('equal')
+    #     self.ax2.set_xlabel("x (mm)")
+    #     self.ax2.set_ylabel("y (mm)")
+
+    #     # Embed the matplotlib plot in tkinter, in grid row 5
+    #     self.canvas2 = FigureCanvasTkAgg(self.fig2, master=self.root) 
+    #     self.canvas_widget2 = self.canvas2.get_tk_widget()
+    #     self.canvas_widget2.grid(row=6, column=3, columnspan=3, padx=1, pady=40, sticky="nse") 
+    #     #self.fig2.tight_layout()
+    #     self.canvas2.draw()
+
     def setup_plots(self):
-        """Creating event plot and BGO plot"""
+        self.image_path1 = "./data/plots/tmp_events.png"
+        self.tk_img1 = None
+        self.image_label1 = ttk.Label(self.root)
+        self.image_label1.grid(row=6, column=0, columnspan=3, padx=1, pady=0, sticky="nsw")
 
-        # Data arrays for event plot
-        self.event_times = []
-        self.seen_event_ids = set()
-        self.gated_event_ids = set()
+        self.image_path2 = "./data/plots/tmp_bgo.png"
+        self.tk_img2 = None
+        self.image_label2 = ttk.Label(self.root)
+        self.image_label2.grid(row=6, column=3, columnspan=3, padx=1, pady=0, sticky="nse") 
 
-        # Create the event plot
-        self.fig1, self.ax1 = plt.subplots(figsize=(500*px, 500*px))
-        self.fig1.patch.set_alpha(0.0)
-        self.line, = self.ax1.plot([], [], marker='.', linestyle='-', markersize=3, label="Events: 0")
-        self.line2, = self.ax1.plot([], [], marker='.', linestyle='-', markersize=3, label="Mixing Events: 0", color="C2")
-        self.ax1.legend()
-        self.ax1.set_xlabel("TDC Time Tag (s)")
-        self.ax1.set_ylabel("Events")
-        self.ax1.set_xlim(0, self.run_duration_var.get())
+        self.update_image()
 
-        # Embed the matplotlib plot in tkinter, in grid row 5
-        self.canvas1 = FigureCanvasTkAgg(self.fig1, master=self.root) 
-        self.canvas_widget1 = self.canvas1.get_tk_widget()
-        self.canvas_widget1.grid(row=6, column=0, columnspan=3, padx=1, pady=40, sticky="nsw") 
-        #self.fig1.tight_layout()
-        self.canvas1.draw()
+    def update_image(self):
+        """Reload PNG file and update label."""
+        try:
+            img1 = Image.open(self.image_path1)
+            img1 = img1.resize((int(img1.width * (380 / img1.height)), 380)) 
+            self.tk_img1 = ImageTk.PhotoImage(img1) #ttk.PhotoImage(file=self.image_path1).subsample(3,3)
+            self.image_label1.configure(image=self.tk_img1)
+            img2 = Image.open(self.image_path2)
+            img2 = img2.resize((int(img2.width * (380 / img2.height)), 380))
+            self.tk_img2 = ImageTk.PhotoImage(img2) # ttk.PhotoImage(file=self.image_path2).subsample(3,3)
+            self.image_label2.configure(image=self.tk_img2)
+        except Exception as e:
+            print("Error loading image:", e)
 
-        # Needed for BGO geometry:
-        self.bgo_geom = pd.read_csv("./config/bgo_geom.csv")
-        self.ch_w = 10
-        self.ch_h = 5
-
-        # Data for BGO plots
-        self.rectangles = []
-        self.BGO_counts = np.zeros(64)
-
-        # Needed for colorbar:
-        self.cmap = plt.cm.viridis
-        self.norm = Normalize(vmin=0, vmax=1)
-        self.zero_color = "#ececec"
-
-        # Create the BGO plot
-        self.fig2, self.ax2 = plt.subplots(figsize=(500*px,500*px))
-        self.fig2.patch.set_alpha(0.0)
-        # Drawing a circle of the size of the BGO
-        self.circle, = self.ax2.fill(45*np.cos(np.linspace( 0, 2*np.pi, 150)), 45*np.sin(np.linspace( 0, 2*np.pi, 150)), 
-                                     linestyle='--', ec="white", fc="lightgray", alpha=0.4)
-        # Creating 64 rectangles for the BGO channels
-        for x, y, c in zip(self.bgo_geom.x, self.bgo_geom.y, self.BGO_counts): 
-            if c == 0:
-                color = self.zero_color
-            else:
-                color = self.cmap(self.norm(c))
-            rect = Rectangle(xy=(x - self.ch_w/2, y - self.ch_h/2),
-                            width=self.ch_w, height=self.ch_h,
-                            color=color)
-            self.ax2.add_artist(rect)
-            self.rectangles.append(rect)
-
-        # Setting up the colorbar, also making sure it's the same size as the plot: 
-        self.sm = plt.cm.ScalarMappable(norm=self.norm, cmap='viridis')
-        divider = make_axes_locatable(self.ax2)
-        cax = divider.append_axes("right", size="5%", pad=0.05)  # Adjust size and padding
-        self.cbar = self.fig2.colorbar(self.sm, cax=cax)
-        self.cbar.set_label("Counts")
-
-        self.ax2.set_aspect('equal')
-        self.ax2.set_xlabel("x (mm)")
-        self.ax2.set_ylabel("y (mm)")
-
-        # Embed the matplotlib plot in tkinter, in grid row 5
-        self.canvas2 = FigureCanvasTkAgg(self.fig2, master=self.root) 
-        self.canvas_widget2 = self.canvas2.get_tk_widget()
-        self.canvas_widget2.grid(row=6, column=3, columnspan=3, padx=1, pady=40, sticky="nse") 
-        #self.fig2.tight_layout()
-        self.canvas2.draw()
-
+        # refresh every 2 seconds (adjust interval as needed)
+        self.root.after(2000, self.update_image)
 
     def send_command(self, command):
         """Send a TCP command to the DAQ controller."""
@@ -370,8 +400,8 @@ class DAQControllerApp:
         self.update_run_number()
         lockfile = f"./tmp/hodo_run_{self.run_number}.lock"     # A "lockfile" is used for the live analysis - it only works while this file exists.
         open(lockfile, "w").close()
-        self.clear_plot1(self.ax1, self.canvas1)
-        self.clear_plot2(self.ax2, self.canvas2)
+        # self.clear_plot1(self.ax1, self.canvas1)
+        # self.clear_plot2(self.ax2, self.canvas2)
         self.cusp_number_at_start = self.cusp_number
         # self.toggle_live_analysis()
         self.toggle_analysis_after()
@@ -413,6 +443,7 @@ class DAQControllerApp:
             self.send_command("stop")
             self.run_running = False
             self.run_progress_bar["value"] = 0
+            self.run_progress_bar.stop()
             # self.run_progress_bar.config(text="Not Running", bootstyle="dark")
             self.run_progress_bar_label.config(text="Not running", bootstyle="light")
 
@@ -640,33 +671,65 @@ class DAQControllerApp:
             self.analysis_after_enabled = False
 
 
+    # def after_analysis_monitor(self):
+    #     """Starts analysis and waits for incoming data."""
+    #     context = zmq.Context()
+    #     socket = context.socket(zmq.SUB)
+    #     socket.connect("tcp://localhost:5555")
+    #     socket.setsockopt_string(zmq.SUBSCRIBE, "") 
+    #     geometry = f"80x26+1140+400"
+    #     self.live_process = subprocess.Popen(["gnome-terminal", f"--geometry={geometry}", 
+    #                                           "--title=Live Analysis Terminal", "--", "bash", "-c", 
+    #                                           f"cd data_analysis/build; ./hodo_analysis -a {str(self.run_number)}"]) #add ; exec bash to keep window open
+
+    #     try:
+    #         while self.analysis_after_enabled:
+    #             try:
+    #                 message = socket.recv_string(flags=zmq.NOBLOCK)
+    #                 #self.console.write(f"Received message: {repr(message)}")
+    #                 self.process_live_data(message)
+    #             except zmq.Again:
+    #                 time.sleep(0.1)  # Avoid busy wait
+    #     except Exception as e:
+    #         self.console.write("Live analysis error:", str(e))
+    #         traceback.print_exc()
+    #     finally:
+    #         socket.close()
+    #         context.term()
+    #         if self.live_process.poll() is None:
+    #             self.live_process.terminate()
+
+
     def after_analysis_monitor(self):
         """Starts analysis and waits for incoming data."""
-        context = zmq.Context()
-        socket = context.socket(zmq.SUB)
-        socket.connect("tcp://localhost:5555")
-        socket.setsockopt_string(zmq.SUBSCRIBE, "") 
+        # context = zmq.Context()
+        # socket = context.socket(zmq.SUB)
+        # socket.connect("tcp://localhost:5555")
+        # socket.setsockopt_string(zmq.SUBSCRIBE, "") 
         geometry = f"80x26+1140+400"
         self.live_process = subprocess.Popen(["gnome-terminal", f"--geometry={geometry}", 
                                               "--title=Live Analysis Terminal", "--", "bash", "-c", 
-                                              f"cd data_analysis/build; ./hodo_analysis -a {str(self.run_number)}"]) #add ; exec bash to keep window open
+                                              f"cd data_analysis/build; ./hodo_analysis {str(self.run_number)}"]) #add ; exec bash to keep window open
 
-        try:
-            while self.analysis_after_enabled:
-                try:
-                    message = socket.recv_string(flags=zmq.NOBLOCK)
-                    #self.console.write(f"Received message: {repr(message)}")
-                    self.process_live_data(message)
-                except zmq.Again:
-                    time.sleep(0.1)  # Avoid busy wait
-        except Exception as e:
-            self.console.write("Live analysis error:", str(e))
-            traceback.print_exc()
-        finally:
-            socket.close()
-            context.term()
-            if self.live_process.poll() is None:
-                self.live_process.terminate()
+        # try:
+        #     while self.analysis_after_enabled:
+        #         try:
+        #             message = socket.recv_string(flags=zmq.NOBLOCK)
+        #             #self.console.write(f"Received message: {repr(message)}")
+        #             self.process_live_data(message)
+        #         except zmq.Again:
+        #             time.sleep(0.1)  # Avoid busy wait
+        # except Exception as e:
+        #     self.console.write("Live analysis error:", str(e))
+        #     traceback.print_exc()
+        # finally:
+        #     socket.close()
+        #     context.term()
+        if self.live_process.poll() is None:
+            self.live_process.terminate()
+        
+
+
 
 
     def process_live_data(self, message):

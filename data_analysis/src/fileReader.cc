@@ -29,7 +29,7 @@ long FileReader::getFileSize() {
 
 // Read a single DataBank
 bool FileReader::readDataBank(DataBank& bank) {
-
+    auto log = Logger::getLogger();
     uint32_t packedBankName;
     // Read Bank Name (4 bytes)
     // if (!file.read(bank.bankName, 4)) return false;
@@ -41,6 +41,7 @@ bool FileReader::readDataBank(DataBank& bank) {
     bank.bankName[2] = (packedBankName >> 16) & 0xFF;   // Third byte
     bank.bankName[3] = (packedBankName >> 24) & 0xFF;   // Fourth byte (most significant byte)
 
+    std::string bankNameStr(bank.bankName, 4);
 
     // Read Number of Events (4 bytes)
     uint32_t eventCount;
@@ -51,25 +52,69 @@ bool FileReader::readDataBank(DataBank& bank) {
     for (uint32_t i = 0; i < eventCount; i++) {
         Event event;
 
-        // Read Timestamp (4 bytes)
-        if (!file.read(reinterpret_cast<char*>(&event.timestamp), sizeof(event.timestamp))) return false;
+        if (bankNameStr == "CUSP") {
+            
+            uint32_t tsHigh;
+            if (!file.read(reinterpret_cast<char*>(&tsHigh), sizeof(tsHigh))) return false;
+
+            if (tsHigh & 0x80000000) {  
+                // --- New format, 64-bit ---
+                uint32_t tsLow;
+                if (!file.read(reinterpret_cast<char*>(&tsLow), sizeof(tsLow))) return false;
+                
+                uint64_t ts64 = (uint64_t(tsHigh & 0x7FFFFFFF) << 32) | tsLow;
+                event.timestamp64 = ts64;
+                event.timestamp = 0;
+                flag64 = true;
+            } else {
+                // --- Old format, 32-bit ---
+                event.timestamp = tsHigh;        // this was the only word stored
+                event.timestamp64 = 0;      // promote for consistency
+                // flag64 = false;
+            }
+        }
+        else if (bankNameStr == "GATE" && flag64) {
+            // --- GATE in 64-bit mode ---
+            uint32_t tsHigh, tsLow;
+            if (!file.read(reinterpret_cast<char*>(&tsHigh), sizeof(tsHigh))) return false;
+            if (!file.read(reinterpret_cast<char*>(&tsLow), sizeof(tsLow))) return false;
+
+            uint64_t ts64 = (uint64_t(tsHigh) << 32) | tsLow;
+            // log->debug("fpgaTimeTag: {}", ts64);
+            event.timestamp64 = ts64;
+            event.timestamp = 0;
+        }  
+        else {
+            // --- All other banks: 32-bit timestamp ---
+            if (!file.read(reinterpret_cast<char*>(&event.timestamp), sizeof(event.timestamp))) return false;
+            event.timestamp64 = 0;  
+        }
+
+        // // Read Timestamp (4 bytes)
+        // if (!file.read(reinterpret_cast<char*>(&event.timestamp), sizeof(event.timestamp))) return false;
 
         // Read Number of Data Points (4 bytes)
         uint32_t dataSize;
         if (!file.read(reinterpret_cast<char*>(&dataSize), sizeof(dataSize))) return false;
 
+        if (dataSize > 1000) { 
+            log->error("Unrealistic dataSize {} in bank {} at offset 0x{:x}", dataSize, bankNameStr, static_cast<long long>(file.tellg()));
+            return false; // or throw an exception
+        }
+
         // Read Data Points (4 * dataSize bytes)
         event.data.resize(dataSize);
         if (!file.read(reinterpret_cast<char*>(event.data.data()), dataSize * sizeof(uint32_t))) return false;
 
-        bank.events.push_back(event);
+        bank.events.push_back(std::move(event));
     }
     return true;
 }
 
 // Read Next Block
 bool FileReader::readNextBlock(Block& block, long startPos) {
-
+    auto log = Logger::getLogger();
+    // log->debug("readNextBlock");
     if (!file.is_open()) {
         std::cerr << "Failed to open file in readNextBlock.\n";
         return false;

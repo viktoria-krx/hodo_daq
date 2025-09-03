@@ -201,6 +201,37 @@ void startReadoutThread(v2495& fpga, std::string bankName, uint32_t regAddressLi
 }
 
 /**
+ * @brief Starts a readout thread for a given FPGA and register.
+ *
+ * This function launches a new thread that continuously reads data from
+ * the specified FPGA module and stores the data in a
+ * thread-safe queue. The thread runs until `stopReadout` is set to true.
+ * Each `DataBank` is named with the provided bankName.
+ *
+ * @param tdc Reference to the TDC from which to read data.
+ * @param bankName The name to be assigned to each `DataBank` created.
+ */
+void startReadoutThread(v2495& fpga, std::string bankName, uint32_t regAddressListOne, uint32_t regAddressStatusOne, uint32_t regAddressListTwo, uint32_t regAddressStatusTwo) {
+    readoutThreads.emplace_back([&fpga, bankName, regAddressListOne, regAddressStatusOne, regAddressListTwo, regAddressStatusTwo] () {
+        // while(!stopReadout) {
+            DataBank dataBank(bankName.c_str());
+
+            unsigned int wordsRead = fpga.readTwoLists(dataBank, regAddressListOne, regAddressStatusOne, regAddressListTwo, regAddressStatusTwo);
+
+            if (wordsRead > 0) {
+                std::lock_guard<std::mutex> lock(bankQueueMutex);
+                bankQueue.push(std::move(dataBank));
+                dataAvailable.notify_one();
+            }
+//            int tdcID = bankName.back() - '0';
+//            tdcReading[tdcID] = false;
+            //std::this_thread::sleep_for(std::chrono::milliseconds(10));
+
+        //}
+    });
+}
+
+/**
  * @brief Write a block of data to a binary file.
  *
  * This function appends the given data block to a binary file associated
@@ -277,14 +308,20 @@ void fileWriterThread() {
 
         DataBank CUSP("CUSP");        // Adding the current s timestamp to the CUSP bank
         auto now = std::chrono::system_clock::now();
-        uint32_t now_s = static_cast<uint32_t>(std::chrono::duration_cast<std::chrono::seconds>(now.time_since_epoch()).count());
+        // uint32_t now_s = static_cast<uint32_t>(std::chrono::duration_cast<std::chrono::seconds>(now.time_since_epoch()).count());
+        uint64_t now_ns = static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::nanoseconds>(now.time_since_epoch()).count());
+
+        // Setting the 63rd bit to 1 as a flag to check if 32 or 64 bit times are used:
+        now_ns |= (1ULL << 63);
+
         std::ifstream cuspFile(config["daq_path"]+"CUSP/Number.txt");
         if (cuspFile) {
             int cuspValue;
             cuspFile >> cuspValue;
             Event eventCUSPrun;
             eventCUSPrun.data.push_back(cuspValue);
-            eventCUSPrun.timestamp = now_s;
+            eventCUSPrun.timestamp64 = now_ns;
+            eventCUSPrun.timestamp = 0;
             CUSP.addEvent(eventCUSPrun);
             eventCUSPrun.data.clear();
         }
@@ -361,7 +398,9 @@ void polling() {
                         log->debug("Readout thread started {:d}", i);
                     }
                 }
-                startReadoutThread(*fpgas[0], "GATE", SCI_REG_Gate_FIFOADDRESS, SCI_REG_Gate_STATUS);
+                // startReadoutThread(*fpgas[0], "GATE", SCI_REG_Gate_FIFOADDRESS, SCI_REG_Gate_STATUS);
+
+                startReadoutThread(*fpgas[0], "GATE", SCI_REG_Gate_FIFOADDRESS, SCI_REG_Gate_STATUS, SCI_REG_TimeTag_FIFOADDRESS, SCI_REG_TimeTag_STATUS);
 
                 isfull = false;
                 std::this_thread::sleep_for(std::chrono::milliseconds(10));  // Small delay to avoid overloading CPU
@@ -374,10 +413,6 @@ void polling() {
                 readoutThreads.resize(NUM_TDCS);
                 
             }
-            
-            
-
-
 
 
         }
@@ -437,6 +472,10 @@ bool start_run() {
         }
         log->debug("Starting Lists on FPGA");
         if (fpga->startGateList() !=  0) {
+            log->error("Failed to start mixGate List on FPGA!");
+            return false;
+        }
+        if (fpga->startTimeList() != 0) {
             log->error("Failed to start mixGate List on FPGA!");
             return false;
         }
@@ -513,7 +552,9 @@ void stop_run() {
         }
 
         DataBank lastGATE("GATE");
-        unsigned int wordsRead = fpgas[0]->readList(lastGATE, SCI_REG_Gate_FIFOADDRESS, SCI_REG_Gate_STATUS);
+        // unsigned int wordsRead = fpgas[0]->readList(lastGATE, SCI_REG_Gate_FIFOADDRESS, SCI_REG_Gate_STATUS);
+        unsigned int wordsRead = fpgas[0]->readTwoLists(lastGATE, SCI_REG_Gate_FIFOADDRESS, SCI_REG_Gate_STATUS, SCI_REG_TimeTag_FIFOADDRESS, SCI_REG_TimeTag_STATUS);
+
 
         if (wordsRead > 0) {
             std::lock_guard<std::mutex> lock(bankQueueMutex);
@@ -529,14 +570,19 @@ void stop_run() {
 
             DataBank CUSP("CUSP");        
             auto now = std::chrono::system_clock::now();
-            uint32_t now_s = static_cast<uint32_t>(std::chrono::duration_cast<std::chrono::seconds>(now.time_since_epoch()).count());
+            // uint32_t now_s = static_cast<uint32_t>(std::chrono::duration_cast<std::chrono::seconds>(now.time_since_epoch()).count());
+            uint64_t now_ns = static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::nanoseconds>(now.time_since_epoch()).count());
+
+            // Setting the 63rd bit to 1 as a flag to check if 32 or 64 bit times are used:
+            now_ns |= (1ULL << 63);
             std::ifstream cuspFile("/home/hododaq/hodo_daq/CUSP/Number.txt");
             if (cuspFile) {
                 int cuspValue;
                 cuspFile >> cuspValue;
                 Event eventCUSPrun;
                 eventCUSPrun.data.push_back(cuspValue);
-                eventCUSPrun.timestamp = now_s;
+                eventCUSPrun.timestamp64 = now_ns;
+                eventCUSPrun.timestamp = 0;
                 CUSP.addEvent(eventCUSPrun);
             }
             finalBlock.addDataBank(CUSP);

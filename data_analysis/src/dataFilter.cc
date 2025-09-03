@@ -113,6 +113,13 @@ void mergeIfUnset(Double_t& out, const Double_t& in) {
     }
 }
 
+void mergeIfUnset(ULong64_t& out, const ULong64_t& in) {
+    if (out == UINT64_UNSET && in != UINT64_UNSET) {
+        out = in;
+    }
+}
+
+
 void mergeIfUnset(Bool_t& out, const Bool_t& in) {
     if (out == BOOL_UNSET && in != BOOL_UNSET) {
         out = in;
@@ -187,6 +194,7 @@ void DataFilter::fileSorter(const char* inputFile, int last_evt, const char* out
     tree->SetBranchAddress("mixGate",        &eventIn.mixGate);
     tree->SetBranchAddress("dumpGate",       &eventIn.dumpGate);
     tree->SetBranchAddress("tdcTimeTag",     &eventIn.tdcTimeTag);
+    tree->SetBranchAddress("fpgaTimeTag",    &eventIn.fpgaTimeTag);
     tree->SetBranchAddress("trgLE",          &eventIn.trgLE);
     tree->SetBranchAddress("trgTE",          &eventIn.trgTE);
 
@@ -230,6 +238,7 @@ void DataFilter::fileSorter(const char* inputFile, int last_evt, const char* out
         newTree->Branch("mixGate",        &eventOut.mixGate,            "mixGate/O");
         newTree->Branch("dumpGate",       &eventOut.dumpGate,           "dumpGate/O");
         newTree->Branch("tdcTimeTag",     &eventOut.tdcTimeTag,         "tdcTimeTag/D");
+        newTree->Branch("fpgaTimeTag",    &eventOut.fpgaTimeTag,        "fpgaTimeTag/D");
         newTree->Branch("trgLE",          eventOut.trgLE.data(),        "trgLE[4]/D");
         newTree->Branch("trgTE",          eventOut.trgTE.data(),        "trgTE[4]/D");
 
@@ -299,6 +308,7 @@ void DataFilter::fileSorter(const char* inputFile, int last_evt, const char* out
             //mergeIfUnset(eventOut.mixGate,       eventIn.mixGate);
             //mergeIfUnset(eventOut.dumpGate,      eventIn.dumpGate);
             mergeIfUnset(eventOut.tdcTimeTag,    eventIn.tdcTimeTag);
+            mergeIfUnset(eventOut.fpgaTimeTag,   eventIn.fpgaTimeTag);
             mergeIfUnset(eventOut.tdcID,         eventIn.tdcID);
 
             switch (tdc) {
@@ -360,6 +370,7 @@ void DataFilter::fileSorter(const char* inputFile, int last_evt, const char* out
 void DataFilter::convertTime(TDCEvent& event) {
     Double_t ns = 0.1;
     Double_t clock_ns = 25;
+    Double_t fpgaclock_ns = 20;
     for (int i = 0; i < 32; i++) {
         event.hodoIDsLE[i] *= ns;
         event.hodoIDsTE[i] *= ns;
@@ -384,7 +395,8 @@ void DataFilter::convertTime(TDCEvent& event) {
         event.trgLE[i] *= ns;
         event.trgTE[i] *= ns;
     }
-    event.tdcTimeTag *= ns;
+    event.tdcTimeTag *= clock_ns;
+    event.fpgaTimeTag *= fpgaclock_ns;
     
 }
 

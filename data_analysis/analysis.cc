@@ -153,9 +153,15 @@ void runOfflineAnalysis(int runNumber) {
     while (reader.readNextBlock(block, last_pos)) {
         for (auto& bank : block.banks) {
             for (auto& event : bank.events) {
+                // log->debug("banks: {}, events in first bank: {}", block.banks.size(), block.banks[0].events.size());
                 decoder.processEvent(bank.bankName, event);
-            }   
+            }
+            // bank.events.clear();  // free per-bank
+            // bank.events.shrink_to_fit();
         }
+        block.banks.clear();      // free per-block
+        block.banks.shrink_to_fit();
+        decoder.autoSave(); // flush baskets to disk
         last_pos = reader.currentPos;
     }
 

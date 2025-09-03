@@ -20,27 +20,32 @@ DataDecoder::DataDecoder(const std::string& outputFile) {
     tree->Branch("mixGate",         &event.mixGate);
     tree->Branch("dumpGate",        &event.dumpGate);
     tree->Branch("tdcTimeTag",      &event.tdcTimeTag);
+    tree->Branch("fpgaTimeTag",     &event.fpgaTimeTag);
     tree->Branch("trgLE",           &event.trgLE);
     tree->Branch("trgTE",           &event.trgTE);
 
-    tree->Branch("hodoIDsLE", &event.hodoIDsLE);     // Inner Downstream Leading Edges
-    tree->Branch("hodoIUsLE", &event.hodoIUsLE);     // Inner Upstream Leading Edges
-    tree->Branch("hodoODsLE", &event.hodoODsLE);     // Outer Downstream Leading Edges
-    tree->Branch("hodoOUsLE", &event.hodoOUsLE);     // Outer Upstream Leading Edges
-    tree->Branch("hodoIDsTE", &event.hodoIDsTE);     // Inner Downstream Trailing Edges
-    tree->Branch("hodoIUsTE", &event.hodoIUsTE);     // Inner Upstream Trailing Edges
-    tree->Branch("hodoODsTE", &event.hodoODsTE);     // Outer Downstream Trailing Edges
-    tree->Branch("hodoOUsTE", &event.hodoOUsTE);     // Outer Upstream Trailing Edges
-    tree->Branch("bgoLE", &event.bgoLE);     // BGO Leading Edges
-    tree->Branch("bgoTE", &event.bgoTE);     // BGO Trailing Edges
+    tree->Branch("hodoIDsLE",   &event.hodoIDsLE);     // Inner Downstream Leading Edges
+    tree->Branch("hodoIUsLE",   &event.hodoIUsLE);     // Inner Upstream Leading Edges
+    tree->Branch("hodoODsLE",   &event.hodoODsLE);     // Outer Downstream Leading Edges
+    tree->Branch("hodoOUsLE",   &event.hodoOUsLE);     // Outer Upstream Leading Edges
+    tree->Branch("hodoIDsTE",   &event.hodoIDsTE);     // Inner Downstream Trailing Edges
+    tree->Branch("hodoIUsTE",   &event.hodoIUsTE);     // Inner Upstream Trailing Edges
+    tree->Branch("hodoODsTE",   &event.hodoODsTE);     // Outer Downstream Trailing Edges
+    tree->Branch("hodoOUsTE",   &event.hodoOUsTE);     // Outer Upstream Trailing Edges
+    tree->Branch("bgoLE",       &event.bgoLE);     // BGO Leading Edges
+    tree->Branch("bgoTE",       &event.bgoTE);     // BGO Trailing Edges
 
-    tree->Branch("tileILE", &event.tileILE);     // Tile Inner Leading Edges
-    tree->Branch("tileITE", &event.tileITE);     // Tile Inner Trailing Edges
-    tree->Branch("tileOLE", &event.tileOLE);     // Tile Outer Leading Edges
-    tree->Branch("tileOTE", &event.tileOTE);     // Tile Outer Trailing Edges
+    tree->Branch("tileILE",     &event.tileILE);     // Tile Inner Leading Edges
+    tree->Branch("tileITE",     &event.tileITE);     // Tile Inner Trailing Edges
+    tree->Branch("tileOLE",     &event.tileOLE);     // Tile Outer Leading Edges
+    tree->Branch("tileOTE",     &event.tileOTE);     // Tile Outer Trailing Edges
 
-    tree->Branch("tdcID", &event.tdcID);
-    
+    tree->Branch("tdcID",       &event.tdcID);
+
+    tree->SetAutoFlush(10);
+    // tree->SetBasketSize("*", 1024);  // reduce basket size
+    tree->SetAutoSave(0);
+
 }
 
 // Destructor: Writes and Closes ROOT File
@@ -151,7 +156,7 @@ bool DataDecoder::fillData(int channel, int rawchannel, int edge, int32_t time, 
 }
 
 
-uint32_t DataDecoder::processEvent(const char bankName[4], Event dataevent) {
+uint32_t DataDecoder::processEvent(const char bankName[4], Event& dataevent) {
 
     auto log = Logger::getLogger();
     uint32_t lastEventID;
@@ -181,7 +186,7 @@ uint32_t DataDecoder::processEvent(const char bankName[4], Event dataevent) {
                 fillData(ch, rawch, le_te, data_time, event);
 
                 event.tdcID = tdcID;
-
+                event.cuspRunNumber = cuspValue;
                 log->trace("[TDC Hit] Bank: {0} | Raw Ch: {1:d} | TDC ID: {2} | Ch: {3:d} | Time: {4:d}", bankN, rawch, tdcID, ch, data_time);
                 
             } else if (IS_TDC_HEADER(word)) {
@@ -213,18 +218,29 @@ uint32_t DataDecoder::processEvent(const char bankName[4], Event dataevent) {
                 geo = ETTT_GEO(word);
                 log->trace("[Global Trailer] | GEO: {} | TimeTag: {:d}", geo, timetag*32+geo);
                 
-                this_timetag[tdcID] = static_cast<Double_t>(timetag*32+geo) + reset_ctr_time[tdcID] * static_cast<Double_t>(0x100000000) ;
+                this_timetag[tdcID] = timetag ; // (timetag*32+geo); // + reset_ctr_time[tdcID] * static_cast<Double_t>(0x100000000) ;
                 if (this_timetag[tdcID] < last_timetag[tdcID]) {
+                    // log->debug("this_timetag: {:d}, last_timetag: {:d}", this_timetag[tdcID], last_timetag[tdcID]);
+                    
+                    // n_diffs = static_cast<int64_t>(diffSecTime) / static_cast<int64_t>(0x100000000)*25e-9;
+                    // log->debug(n_diffs);
                     reset_ctr_time[tdcID]++;
+                    // log->debug("reset_ctr_time: {:d}", reset_ctr_time[tdcID]);
                 }
 
-                event.tdcTimeTag = static_cast<Double_t>(timetag*32+geo) + reset_ctr_time[tdcID] * static_cast<Double_t>(0x100000000);
+                event.tdcTimeTag = static_cast<Double_t>(timetag*32+geo) + static_cast<Double_t>(reset_ctr_time[tdcID] * 4294967296.0);
                 log->trace("[Global Trailer] | GEO: {} | TimeTag: {:f}", geo, event.tdcTimeTag);
-                last_timetag[tdcID] = event.tdcTimeTag;
+                last_timetag[tdcID] = timetag; //(timetag*32+geo);  //event.tdcTimeTag;
                 event.cuspRunNumber = cuspValue;
-                event.timestamp = static_cast<Double_t>(secTime);
-                event.mixGate = gateValue; 
+                if (dataevent.timestamp64 > 0) {
+                    event.timestamp = nsecTime;
+                } else {
+                    event.timestamp = static_cast<Double_t>(secTime);
+                }
 
+                // log->debug("timestamp in TDC: {} = {}", event.timestamp, nsecTime);
+                
+                event.mixGate = gateValue; 
                 tree->Fill();
                 lastEventID = event.eventID;
                 event.reset();
@@ -239,10 +255,18 @@ uint32_t DataDecoder::processEvent(const char bankName[4], Event dataevent) {
             event.eventID = GATE_EVENT(data[i]);
             event.mixGate = (Bool_t)GATE_BOOL(data[i]);
             event.dumpGate = (Bool_t)DUMP_BOOL(data[i]);
-            log->trace("[GATE Decode] eventID: 0x{0:x}, mixGate: 0x{1:x}, dumpGate: 0x{2:x}",
-                event.eventID, event.mixGate, event.dumpGate);
+            if (dataevent.timestamp64 != 0){
+                event.fpgaTimeTag = static_cast<Double_t>(dataevent.timestamp64);
+                event.timestamp = nsecTime;
+            } else {
+                event.timestamp = secTime;
+            }
+            event.cuspRunNumber = cuspValue;
+            log->trace("[GATE Decode] eventID: 0x{0:x}, mixGate: 0x{1:x}, dumpGate: 0x{2:x}, fpgaTimeTag: {3}",
+                event.eventID, event.mixGate, event.dumpGate, event.fpgaTimeTag);
             event.tdcID = 4;
             tree->Fill();
+            tree->FlushBaskets();
             event.reset();
         }
     } else if (bankN == "CUSP") {
@@ -252,8 +276,25 @@ uint32_t DataDecoder::processEvent(const char bankName[4], Event dataevent) {
             cuspValue = data[0];
             event.cuspRunNumber = cuspValue;
             
-            secTime = static_cast<Double_t>(dataevent.timestamp);
-            event.timestamp = secTime;
+            if (dataevent.timestamp64 > 0) {
+                nsecTime = static_cast<Double_t>(static_cast<ULong64_t>(dataevent.timestamp64)*1e-9);
+                // log->debug("nsecTime {}", nsecTime);
+                event.timestamp = nsecTime;
+                // log->debug("CUSP event.timestamp {}", event.timestamp);
+            } else {
+                secTime = static_cast<Double_t>(dataevent.timestamp);
+                log->debug("secTime {}", secTime);
+                event.timestamp = secTime;
+            }
+
+            log->trace("[CUSP Decode] cuspRunNumber: {0}, timeTag: {1}",
+                event.cuspRunNumber, event.timestamp);
+
+            
+            // diffSecTime = lastSecTime - secTime;
+            // event.timestamp = secTime;
+
+            // lastSecTime = secTime;
             // log->debug("[CUSP Event] Value: {0:d} | Time: {1:d}", cuspValue, secTime);
             // tree->Fill();
             // event.reset();
@@ -356,8 +397,8 @@ constexpr int DataDecoder::getChannel(int tdcch) {
         {{-138 ,-139 ,-140 ,-141 ,-142 ,-143 ,-144 ,-999 ,-153 ,-154 ,-155 ,-156 ,-157 ,-158 ,-159 ,-999 }}, // Inner Tiles AmpBoard 23
         {{-168 ,-169 ,-170 ,-171 ,-172 ,-173 ,-174 ,-999 ,-183 ,-184 ,-185 ,-186 ,-187 ,-188 ,-189 ,-999 }}, // Inner Tiles AmpBoard 24
         {{-198 ,-199 ,-200 ,-201 ,-202 ,-203 ,-204 ,-999 ,-213 ,-214 ,-215 ,-216 ,-217 ,-218 ,-219 , 502 }}, // Inner Tiles AmpBoard 25
-        // {{ 300 , 301 , 302 , 303 , 304 , 305 , 306 , 307 , 308 , 309 , 310 , 311 , 312 , 313 , 314 , 503 }}, // BGO 1
-        {{ 300 , 301 , 302 , 303 , 304 , 305 , 306 , 307 , 308 , 309 , 310 , 311 , 312 , 313 , 314 , 315 }}, // BGO 1
+        {{ 300 , 301 , 302 , 303 , 304 , 305 , 306 , 307 , 308 , 309 , 310 , 311 , 312 , 313 , 314 , 503 }}, // BGO 1
+        // {{ 300 , 301 , 302 , 303 , 304 , 305 , 306 , 307 , 308 , 309 , 310 , 311 , 312 , 313 , 314 , 315 }}, // BGO 1
         {{ 316 , 317 , 318 , 319 , 320 , 321 , 322 , 323 , 324 , 325 , 326 , 327 , 328 , 329 , 330 , 331 }}, // BGO 2
         // {{ 332 , 333 , 334 , 335 , 336 , 337 , 338 , 339 , 340 , 341 , 342 , 343 , 344 , 345 , 346 , 600 }}, // BGO 3
         {{ 332 , 333 , 334 , 335 , 336 , 337 , 338 , 339 , 340 , 341 , 342 , 343 , 344 , 345 , 346 , 347 }}, // BGO 3
@@ -378,4 +419,9 @@ void DataDecoder::flush() {
     }
 }
 
+void DataDecoder::autoSave() {
+    if (tree && rootFile) {
+        tree->AutoSave("SaveSelf"); // flush baskets to disk
+    }
+}
 
