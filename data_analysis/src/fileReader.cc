@@ -97,9 +97,19 @@ bool FileReader::readDataBank(DataBank& bank) {
         uint32_t dataSize;
         if (!file.read(reinterpret_cast<char*>(&dataSize), sizeof(dataSize))) return false;
 
-        if (dataSize > 1000) { 
+        if (dataSize > 10000) { 
             log->error("Unrealistic dataSize {} in bank {} at offset 0x{:x}", dataSize, bankNameStr, static_cast<long long>(file.tellg()));
-            return false; // or throw an exception
+
+            std::string resyncedBank;
+            if (resyncToNextBank(file, resyncedBank)) {
+                log->warn("Resynced to bank {} at offset 0x{:x}", 
+                        resyncedBank, static_cast<long long>(file.tellg()));
+                // You’d now return control so the next `readDataBank()` starts at the new bank
+                return true;
+            } else {
+                log->error("Failed to resync, reached EOF.");
+                return false;
+            }
         }
 
         // Read Data Points (4 * dataSize bytes)
@@ -110,6 +120,31 @@ bool FileReader::readDataBank(DataBank& bank) {
     }
     return true;
 }
+
+bool FileReader::resyncToNextBank(std::ifstream& file, std::string& bankNameOut) {
+    auto log = Logger::getLogger();
+    uint32_t candidate;
+    while (file.read(reinterpret_cast<char*>(&candidate), sizeof(candidate))) {
+        char name[5];
+        name[0] =  candidate        & 0xFF;
+        name[1] = (candidate >> 8)  & 0xFF;
+        name[2] = (candidate >> 16) & 0xFF;
+        name[3] = (candidate >> 24) & 0xFF;
+        name[4] = '\0';
+
+        std::string bankName(name);
+
+        if (bankName == "CUSP" || bankName == "GATE" || bankName.rfind("TDC", 0) == 0) {
+            bankNameOut = bankName;
+            log->debug("Found next bank: {} at offset =x{:x}", bankName, static_cast<long long>(file.tellg()));
+            // move back 4 bytes so the caller reads the bank name itself
+            file.seekg(-4, std::ios::cur);
+            return true;  // found valid bank
+        }
+    }
+    return false; // EOF reached without finding new bank
+}
+
 
 // Read Next Block
 bool FileReader::readNextBlock(Block& block, long startPos) {

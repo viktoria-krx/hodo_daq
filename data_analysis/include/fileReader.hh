@@ -66,6 +66,7 @@ public:
 private:
     std::ifstream file;
     bool readDataBank(DataBank& bank);
+    bool resyncToNextBank(std::ifstream& file, std::string& bankNameOut);
     const std::string& filename = "";
     bool flag64 = false;
     
