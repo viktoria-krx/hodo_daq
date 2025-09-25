@@ -116,7 +116,10 @@ class Data:
         
         # print(df.head(40))
 
-
+    def write_tmp_overview(self):
+        with open("/home/hododaq/DAQ/data/tmp_overview.csv", "w") as f:
+            f.write("RunNr,CUSPNumber,Events,MixEvents\n")
+            f.write(f"{self.run_nr},{self.cusp_nr},{len(self.events)},{len(self.mix_events.unique())}")
 
 
 
@@ -246,10 +249,13 @@ def main():
     plot = Plotter(data.times, data.events, data.mix_events, data.channels)
     plot.event_plot()
     plot.save_plot(plot.fig1, f"{data.config.get("daq_path")}/data/plots/{data.cusp_nr}_run_{data.run_nr:0>5}_events")
-    plot.save_tmp_plot(plot.fig1, f"{data.config.get("daq_path")}/data/plots/tmp_events")
+    plot.save_tmp_plot(plot.fig1, f"{data.config.get("daq_path")}/data/tmp_events")
     plot.bgo_plot(data)
     plot.save_plot(plot.fig2, f"{data.config.get("daq_path")}/data/plots/{data.cusp_nr}_run_{data.run_nr:0>5}_bgo")
-    plot.save_tmp_plot(plot.fig2, f"{data.config.get("daq_path")}/data/plots/tmp_bgo")
+    plot.save_tmp_plot(plot.fig2, f"{data.config.get("daq_path")}/data/tmp_bgo")
+
+    data.write_tmp_overview()
+
 
 
 if __name__=="__main__":

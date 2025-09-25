@@ -43,6 +43,18 @@ int countNonZeroToT(const ROOT::RVec<Double_t>& tot) {
     return count;
 }
 
+
+template <size_t N>
+int computeToTSum(const ROOT::RVec<Double_t>& tot) {
+    Double_t totsum = 0;
+    for (size_t i = 0; i < N; ++i) {
+        if (tot[i] > 0) {
+            totsum = totsum+tot[i];
+        }
+    }
+    return totsum;
+}
+
 template <size_t N>
 std::vector<int> getActiveIndices(const ROOT::RVec<Double_t>& arr) {
     std::vector<int> indices;
@@ -430,6 +442,7 @@ void DataFilter::filterAndSave(const char* inputFile, int last_evt) {
             .Define("tileIToT", computeToT<120>, {"tileILE", "tileITE"})
             .Define("tileOToT", computeToT<120>, {"tileOLE", "tileOTE"})
             .Define("bgoCts", countNonZeroToT<64>, {"bgoToT"})
+            .Define("bgoToTSum", computeToTSum<64>, {"bgoToT"})
             .Define("barODsToT", barCoincidenceToT, {"hodoODsToT", "hodoOUsToT"})
             .Define("barOUsToT", barCoincidenceToT, {"hodoOUsToT", "hodoODsToT"})
             .Define("barIDsToT", barCoincidenceToT, {"hodoIDsToT", "hodoIUsToT"})

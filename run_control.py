@@ -248,7 +248,7 @@ class DAQControllerApp:
         self.last_run_events_gate = ""
         self.last_run_frame = ttk.Frame(root, bootstyle="dark")
         self.last_run_frame.grid(row=5, column=0, columnspan=7, sticky="nsew", padx=10)
-        self.last_run_number = ttk.Label(root, text=f"Last Run: {self.last_run_nr} \t\t CUSP Nr: {self.last_run_cusp} \t\t Total Events: {self.last_run_events} \t\t Mixing Events: {self.last_run_events_gate}", 
+        self.last_run_number = ttk.Label(root, text=f"Last Analysed Run: {self.last_run_nr} \t\t CUSP Nr: {self.last_run_cusp} \t\t Total Events: {self.last_run_events} \t\t Mixing Events: {self.last_run_events_gate}", 
                                          font=self.button_font, width=8, bootstyle="inverse-dark")
         self.last_run_number.grid(row=5, column=0, columnspan=7, sticky="nwse", padx=60, pady=10)
         #self.last_run_cusp_number = ttk.Label(root, text=f"CUSP Nr: {self.last_run_cusp}", font=self.label_font, width=8, bootstyle="inverse-dark")
@@ -340,18 +340,35 @@ class DAQControllerApp:
     #     #self.fig2.tight_layout()
     #     self.canvas2.draw()
 
+    def get_last_run(self):
+        """Get last run overview."""
+        self.last_run_info_path = "./data/tmp_overview.csv"
+        try:
+            lastrun = pd.read_csv(self.last_run_info_path)
+            self.last_run_nr = lastrun.RunNr.values[0]
+            self.last_run_cusp = lastrun.CUSPNumber.values[0]
+            self.last_run_events = lastrun.Events.values[0]
+            self.last_run_events_gate = lastrun.MixEvents.values[0]
+
+            self.last_run_number.config(text=f"Last Analysed Run: {self.last_run_nr} \t\t CUSP Nr: {self.last_run_cusp} \t\t Total Events: {self.last_run_events} \t Mixing Events: {self.last_run_events_gate}")
+
+        except:
+            print("Error loading last run's info")
+
+
     def setup_plots(self):
-        self.image_path1 = "./data/plots/tmp_events.png"
+        self.image_path1 = "./data/tmp_events.png"
         self.tk_img1 = None
         self.image_label1 = ttk.Label(self.root)
         self.image_label1.grid(row=6, column=0, columnspan=3, padx=1, pady=0, sticky="nsw")
 
-        self.image_path2 = "./data/plots/tmp_bgo.png"
+        self.image_path2 = "./data/tmp_bgo.png"
         self.tk_img2 = None
         self.image_label2 = ttk.Label(self.root)
         self.image_label2.grid(row=6, column=3, columnspan=3, padx=1, pady=0, sticky="nse") 
 
         self.update_image()
+        self.get_last_run()
 
     def update_image(self):
         """Reload PNG file and update label."""
@@ -364,11 +381,15 @@ class DAQControllerApp:
             img2 = img2.resize((int(img2.width * (380 / img2.height)), 380))
             self.tk_img2 = ImageTk.PhotoImage(img2) # ttk.PhotoImage(file=self.image_path2).subsample(3,3)
             self.image_label2.configure(image=self.tk_img2)
+
+            self.get_last_run()
+
         except Exception as e:
             print("Error loading image:", e)
 
         # refresh every 2 seconds (adjust interval as needed)
         self.root.after(2000, self.update_image)
+
 
     def send_command(self, command):
         """Send a TCP command to the DAQ controller."""
@@ -415,6 +436,10 @@ class DAQControllerApp:
         self.run_running = False
         self.run_progress_bar.stop()
         self.run_progress_bar["value"] = 0
+        if hasattr(self, "time_update_after"):
+            self.root.after_cancel(self.time_update_after)  # cancels the scheduled call
+        del self.time_update_after
+        
         # self.run_progress_bar.config(text="Not Running", bootstyle="dark")
         self.run_progress_bar_label.config(text="Not running", bootstyle="light")
         lockfile = f"./tmp/hodo_run_{self.run_number}.lock"     # Lockfile is deleted when the run is stopped. 
@@ -562,7 +587,7 @@ class DAQControllerApp:
         self.run_progress_bar_label.configure(text=f"Running...   {self.elapsed_time} seconds", bootstyle="light")
         self.elapsed_time += 1
 
-        self.root.after(1000, lambda: self.update_duration_text())  # Call itself after 1 sec
+        self.time_update_after = self.root.after(1000, lambda: self.update_duration_text())  # Call itself after 1 sec
         if not self.run_running:
             self.run_progress_bar.stop()
             self.run_progress_bar["value"] = 0
@@ -754,7 +779,7 @@ class DAQControllerApp:
             self.last_run_events = sum_events
             self.last_run_events_gate = sum_events_gated
 
-            self.last_run_number.config(text=f"Last Run: {self.last_run_nr} \t CUSP Nr: {self.last_run_cusp} \t Total Events: {self.last_run_events} \t Mixing Events: {self.last_run_events_gate}")
+            self.last_run_number.config(text=f"Last Analysed Run: {self.last_run_nr} \t CUSP Nr: {self.last_run_cusp} \t Total Events: {self.last_run_events} \t Mixing Events: {self.last_run_events_gate}")
             #self.last_run_cusp_number.config(text=f"CUSP Nr: {self.last_run_cusp}")
             #self.last_run_event_counter.config(text=f"Total Events: {self.last_run_events}")
             #self.last_run_event_gate_counter.config(text=f"Mixing Events: {self.last_run_events_gate}")
