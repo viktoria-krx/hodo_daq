@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # This commands mount some windows folders on this PC. 
-# The CUSP folder which has the Number.txt
+# The CUSP folder which has the Number.txt/Hodo.txt
 # The TdiagTraces folder with all the images
 # The folder with the FPGA logics, so they can be upgraded via VME and CAEN Toolbox
 

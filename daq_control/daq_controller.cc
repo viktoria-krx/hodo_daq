@@ -314,7 +314,7 @@ void fileWriterThread() {
         // Setting the 63rd bit to 1 as a flag to check if 32 or 64 bit times are used:
         now_ns |= (1ULL << 63);
 
-        std::ifstream cuspFile(config["daq_path"]+"CUSP/Number.txt");
+        std::ifstream cuspFile(config["daq_path"]+"CUSP/Hodo.txt");
         if (cuspFile) {
             int cuspValue;
             cuspFile >> cuspValue;
@@ -575,7 +575,7 @@ void stop_run() {
 
             // Setting the 63rd bit to 1 as a flag to check if 32 or 64 bit times are used:
             now_ns |= (1ULL << 63);
-            std::ifstream cuspFile("/home/hododaq/hodo_daq/CUSP/Number.txt");
+            std::ifstream cuspFile("/home/hododaq/hodo_daq/CUSP/Hodo.txt");
             if (cuspFile) {
                 int cuspValue;
                 cuspFile >> cuspValue;

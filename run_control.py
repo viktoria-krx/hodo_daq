@@ -1,7 +1,7 @@
 #!/home/hododaq/anaconda3/bin/python
 """
 This GUI controls the data acquisition by sending start and stop commands to the DAQ running in C++
-It has the option "autorun" which depends on the file Number.txt on pcad3-musashi to be changing. Make sure the folder is mounted on this PC.
+It has the option "autorun" which depends on the file Hodo.txt on pcad3-musashi to be changing. Make sure the folder is mounted on this PC.
 @author: viktoria
 """
 
@@ -155,7 +155,7 @@ class DAQControllerApp:
         self.run_number = self.config.get("run_number", "Unknown")  # Get run_number or default to "Unknown"
 
         # Read CUSP run number file
-        self.run_file = "CUSP/Number.txt"  # Change this to your actual run number file
+        self.run_file = "CUSP/Hodo.txt"  # File that stores the CUSP run number
         self.cusp_number = self.read_cusp_run_number().get("cusp_run", 0)
 
         # Title Label
@@ -182,7 +182,7 @@ class DAQControllerApp:
         self.run_active = False
 
         # Run duration input
-        self.run_duration_var = ttk.IntVar(value=1200)  # Default: 1200
+        self.run_duration_var = ttk.IntVar(value=600)  # Default: 600
         ttk.Label(root, text="Run Duration (s):", font=self.label_font).grid(row=2, column=3, sticky="nse", padx=20, pady=10)
         self.run_duration_entry = ttk.Entry(root, textvariable=self.run_duration_var, font=self.label_font, width=8, justify="center", cursor="clock")
         self.run_duration_entry.grid(row=2, column=4, sticky="nsw", padx=20, pady=10)
