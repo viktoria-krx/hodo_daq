@@ -119,7 +119,7 @@ class Data:
     def write_tmp_overview(self):
         with open("/home/hododaq/DAQ/data/tmp_overview.csv", "w") as f:
             f.write("RunNr,CUSPNumber,Events,MixEvents\n")
-            f.write(f"{self.run_nr},{self.cusp_nr},{len(self.events)},{len(self.mix_events.unique())}")
+            f.write(f"{self.run_nr},{self.cusp_nr},{len(self.events)},{len(self.mix_events.unique())-1}")
 
 
 

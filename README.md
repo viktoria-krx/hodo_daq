@@ -26,9 +26,11 @@ When this option is chosen, the GUI automatically starts reading the CUSP run nu
 If Auto Run is not chosen, a run can be started manually by pressing the "Start Run" button, it is stopped only when "Stop Run" is pressed but can also be paused and resumed.
 
 #### Analysis Options
-There are two options to get a pre analysis done of the data. **Analysis After** waits for the run to be stopped and then starts the data analysis script. After the ROOT file is analysed, a summary of the data is sent to the python GUI (via ZMQ) and the row with the basic informations and the two plots below are updated. 
+There are two options to get a pre analysis done of the data. Currently only "Analysis After" works.
 
-The option **Live Analysis** is currently having a few troubles, but in principle the data should be read in chunks which are immediately analysed and information is sent to the GUI. This is not fully working yet. 
+**Analysis After** waits for the run to be stopped and then starts the data analysis script. After the ROOT file is analysed, a summary of the data is saved to a temporary file which is shown in the python GUI and the row with the basic informations and the two plots below are updated. 
+
+The option **Live Analysis** is currently having a few troubles, but in principle the data should be read in chunks which are immediately analysed and information is sent to the GUI. This is not fully working yet as there are issues with writing and reading data at the same time. 
 In the plot on the left the purple "Mixing Events" are those events triggered while the mixing gate is on. 
 In the 2D histogram of the BGO on the right currently all events are shown, I will change this later. 
 

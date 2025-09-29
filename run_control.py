@@ -689,9 +689,11 @@ class DAQControllerApp:
         """Enables or disables automatic analysis after each run."""
         if self.analysis_after_var.get() and self.run_running:
             self.analysis_after_enabled = True
+            print("Analysis after enabled")
             # threading.Thread(target=self.after_analysis_monitor, daemon=True).start()
         elif self.analysis_after_var.get() and not self.run_running:
             self.analysis_after_enabled = True
+            print("Analysis after enabled")
         else:
             self.analysis_after_enabled = False
 
@@ -731,11 +733,12 @@ class DAQControllerApp:
         # socket = context.socket(zmq.SUB)
         # socket.connect("tcp://localhost:5555")
         # socket.setsockopt_string(zmq.SUBSCRIBE, "") 
+        print("Starting Analysis")
         geometry = f"80x26+1140+400"
         self.live_process = subprocess.Popen(["gnome-terminal", f"--geometry={geometry}", 
-                                              "--title=Live Analysis Terminal", "--", "bash", "-c", 
+                                              "--title=Live Analysis Terminal", "--", "bash", "-l", "-c", 
                                               f"cd data_analysis/build; ./hodo_analysis {str(self.run_number)}"]) #add ; exec bash to keep window open
-
+        print("Analysis done.")
         # try:
         #     while self.analysis_after_enabled:
         #         try:
